@@ -214,6 +214,13 @@ public abstract class FileScanNode extends ExternalScanNode {
         tExpr.setNodes(Lists.newArrayList());
 
         for (Column column : tbl.getBaseSchema()) {
+            // if there is already an expr , just skip it.
+            // eg:
+            // (a, b, c, c=hll_hash(c)) in stream load
+            // c will be filled with hll_hash(column c) , don't need to specify it.
+            if (exprByName != null && exprByName.containsKey(column.getName())) {
+                continue;
+            }
             Expr expr;
             if (column.getDefaultValue() != null) {
                 if (column.getDefaultValueExprDef() != null) {
@@ -233,13 +240,6 @@ public abstract class FileScanNode extends ExternalScanNode {
                 } else {
                     expr = null;
                 }
-            }
-            // if there is already an expr , just skip it.
-            // eg:
-            // (a, b, c, c=hll_hash(c)) in stream load
-            // c will be filled with hll_hash(column c) , don't need to specify it.
-            if (exprByName != null && exprByName.containsKey(column.getName())) {
-                continue;
             }
             SlotDescriptor slotDesc = slotDescByName.get(column.getName());
             // if slot desc is null, which mean it is an unrelated slot, just skip.

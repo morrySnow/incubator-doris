@@ -35,6 +35,9 @@ import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.load.loadv2.LoadTask;
 import org.apache.doris.mysql.privilege.PrivPredicate;
+import org.apache.doris.nereids.exceptions.ParseException;
+import org.apache.doris.nereids.parser.NereidsParser;
+import org.apache.doris.nereids.trees.plans.commands.load.ImportColumnInfo;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.task.LoadTaskInfo;
 import org.apache.doris.thrift.TFileCompressType;
@@ -861,7 +864,7 @@ public class DataDescription implements InsertStmt.DataDesc {
             ImportColumnDesc importColumnDesc = new ImportColumnDesc(column, cloned);
             parsedColumnExprList.add(importColumnDesc);
             if (cloned instanceof FunctionCallExpr) {
-                analyzeColumnToHadoopFunction(column, cloned);
+                analyzeColumnToHadoopFunction(column, (FunctionCallExpr) cloned);
             }
         }
     }
@@ -871,35 +874,30 @@ public class DataDescription implements InsertStmt.DataDesc {
             return;
         }
         String columnsSQL = "COLUMNS (" + columnDef + ")";
-        SqlParser parser = new SqlParser(new org.apache.doris.analysis.SqlScanner(new StringReader(columnsSQL)));
-        ImportColumnsStmt columnsStmt;
+        NereidsParser parser = new NereidsParser();
+        List<ImportColumnInfo> importColumnInfos;
         try {
-            columnsStmt = (ImportColumnsStmt) SqlParserUtils.getFirstStmt(parser);
-        } catch (Error e) {
+            // TODO: could use parse identifierDeq
+            importColumnInfos = parser.parseImportColumns(columnsSQL);
+        } catch (ParseException e) {
             LOG.warn("error happens when parsing columns, sql={}", columnsSQL, e);
             throw new AnalysisException("failed to parsing columns' header, maybe contain unsupported character");
-        } catch (AnalysisException e) {
-            LOG.warn("analyze columns' statement failed, sql={}, error={}",
-                    columnsSQL, parser.getErrorMsg(columnsSQL), e);
-            String errorMessage = parser.getErrorMsg(columnsSQL);
-            if (errorMessage == null) {
-                throw e;
-            } else {
-                throw new AnalysisException(errorMessage, e);
-            }
         } catch (Exception e) {
             LOG.warn("failed to parse columns header, sql={}", columnsSQL, e);
             throw new AnalysisException("parse columns header failed", e);
         }
-
-        if (columnsStmt.getColumns() != null && !columnsStmt.getColumns().isEmpty()) {
-            parsedColumnExprList = columnsStmt.getColumns();
+        List<ImportColumnDesc> importColumnDescs = Lists.newArrayList();
+        for (ImportColumnInfo importColumnInfo : importColumnInfos) {
+            ImportColumnDesc importColumnDesc = new ImportColumnDesc(importColumnInfo.getColumn());
+            importColumnDescs.add(importColumnDesc);
+        }
+        if (!importColumnDescs.isEmpty()) {
+            parsedColumnExprList = importColumnDescs;
         }
     }
 
-    private void analyzeColumnToHadoopFunction(String columnName, Expr child1) throws AnalysisException {
-        Preconditions.checkState(child1 instanceof FunctionCallExpr);
-        FunctionCallExpr functionCallExpr = (FunctionCallExpr) child1;
+    private void analyzeColumnToHadoopFunction(String columnName,
+            FunctionCallExpr functionCallExpr) throws AnalysisException {
         String functionName = functionCallExpr.getFnName().getFunction();
         if (!HADOOP_SUPPORT_FUNCTION_NAMES.contains(functionName.toLowerCase())) {
             return;

@@ -154,12 +154,12 @@ public class BrokerFileGroup implements Writable {
 
             // only do check when here's restore on this table now
             if (olapTable.getState() == OlapTableState.RESTORE) {
-                boolean hasPartitionRestoring = olapTable.getPartitions().stream()
+                boolean partitionLevelRestore = olapTable.getPartitions().stream()
                         .anyMatch(partition -> partition.getState() == PartitionState.RESTORE);
                 // tbl RESTORE && all partition NOT RESTORE -> whole table restore
                 // tbl RESTORE && some partition RESTORE -> just partitions restore, NOT WHOLE TABLE
-                // so check wether the whole table restore here
-                if (!hasPartitionRestoring) {
+                // so check whether the whole table restore here
+                if (!partitionLevelRestore) {
                     throw new DdlException("Table [" + olapTable.getName() + "] is under restore");
                 }
             }

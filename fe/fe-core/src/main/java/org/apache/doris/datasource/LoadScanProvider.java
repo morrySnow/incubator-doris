@@ -58,8 +58,8 @@ import java.util.Optional;
 
 public class LoadScanProvider {
 
-    private FileGroupInfo fileGroupInfo;
-    private TupleDescriptor destTupleDesc;
+    private final FileGroupInfo fileGroupInfo;
+    private final TupleDescriptor destTupleDesc;
 
     public LoadScanProvider(FileGroupInfo fileGroupInfo, TupleDescriptor destTupleDesc) {
         this.fileGroupInfo = fileGroupInfo;

@@ -111,6 +111,8 @@ import org.apache.doris.nereids.DorisParser.HintStatementContext;
 import org.apache.doris.nereids.DorisParser.IdentifierContext;
 import org.apache.doris.nereids.DorisParser.IdentifierListContext;
 import org.apache.doris.nereids.DorisParser.IdentifierSeqContext;
+import org.apache.doris.nereids.DorisParser.ImportColumnDescContext;
+import org.apache.doris.nereids.DorisParser.ImportColumnsStatementContext;
 import org.apache.doris.nereids.DorisParser.InPartitionDefContext;
 import org.apache.doris.nereids.DorisParser.IndexDefContext;
 import org.apache.doris.nereids.DorisParser.IndexDefsContext;
@@ -443,6 +445,7 @@ import org.apache.doris.nereids.trees.plans.commands.info.TableNameInfo;
 import org.apache.doris.nereids.trees.plans.commands.insert.BatchInsertIntoTableCommand;
 import org.apache.doris.nereids.trees.plans.commands.insert.InsertIntoTableCommand;
 import org.apache.doris.nereids.trees.plans.commands.insert.InsertOverwriteTableCommand;
+import org.apache.doris.nereids.trees.plans.commands.load.ImportColumnInfo;
 import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalCTE;
 import org.apache.doris.nereids.trees.plans.logical.LogicalExcept;
@@ -3778,5 +3781,20 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             command.setBackendId(backendId);
         }
         return command;
+    }
+
+    @Override
+    public List<ImportColumnInfo> visitImportColumnsStatement(ImportColumnsStatementContext ctx) {
+        return ParserUtils.withOrigin(ctx, () -> {
+            ImmutableList.Builder<ImportColumnInfo> importColumnInfos
+                    = ImmutableList.builderWithExpectedSize(ctx.importColumnDesc().size());
+            for (ImportColumnDescContext descCtx : ctx.importColumnDesc()) {
+                Expression expression = descCtx.booleanExpression() == null
+                        ? null : typedVisit(descCtx.booleanExpression());
+                ImportColumnInfo info = new ImportColumnInfo(descCtx.name.getText(), expression);
+                importColumnInfos.add(info);
+            }
+            return importColumnInfos.build();
+        });
     }
 }

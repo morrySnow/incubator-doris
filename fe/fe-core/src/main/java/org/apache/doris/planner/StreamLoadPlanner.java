@@ -137,10 +137,9 @@ public class StreamLoadPlanner {
         resetAnalyzer();
         // construct tuple descriptor, used for dataSink
         tupleDesc = descTable.createTupleDescriptor("DstTableTuple");
-        TupleDescriptor scanTupleDesc = tupleDesc;
         // note: we use two tuples separately for Scan and Sink here to avoid wrong nullable info.
         // construct tuple descriptor, used for scanNode
-        scanTupleDesc = descTable.createTupleDescriptor("ScanTuple");
+        TupleDescriptor scanTupleDesc = descTable.createTupleDescriptor("ScanTuple");
         boolean negative = taskInfo.getNegative();
         // get partial update related info
         boolean isPartialUpdate = taskInfo.isPartialUpdate();
@@ -156,7 +155,7 @@ public class StreamLoadPlanner {
 
         if (isPartialUpdate) {
             boolean hasSyncMaterializedView = destTable.getFullSchema().stream()
-                    .anyMatch(col -> col.isMaterializedViewColumn());
+                    .anyMatch(Column::isMaterializedViewColumn);
             if (hasSyncMaterializedView) {
                 throw new DdlException("Can't do partial update on merge-on-write Unique table"
                         + " with sync materialized view.");
@@ -172,8 +171,8 @@ public class StreamLoadPlanner {
                 }
                 for (ImportColumnDesc importColumnDesc : taskInfo.getColumnExprDescs().descs) {
                     if (importColumnDesc.getColumnName() != null
-                            && importColumnDesc.getColumnName().equals(col.getName())) {
-                        if (!col.isVisible() && !Column.DELETE_SIGN.equals(col.getName())) {
+                            && importColumnDesc.getColumnName().equalsIgnoreCase(col.getName())) {
+                        if (!col.isVisible() && !Column.DELETE_SIGN.equalsIgnoreCase(col.getName())) {
                             throw new UserException("Partial update should not include invisible column except"
                                     + " delete sign column: " + col.getName());
                         }
@@ -252,6 +251,7 @@ public class StreamLoadPlanner {
 
         scanTupleDesc.setTable(destTable);
         analyzer.registerTupleDescriptor(scanTupleDesc);
+        // TODO where should analyze by Nereids, maybe we could construct a fake scan and analyze where expr
         Expr whereExpr = null;
         if (null != taskInfo.getWhereExpr()) {
             whereExpr = taskInfo.getWhereExpr().clone();

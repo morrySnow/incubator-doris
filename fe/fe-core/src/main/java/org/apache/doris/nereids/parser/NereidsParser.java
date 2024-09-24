@@ -28,6 +28,7 @@ import org.apache.doris.nereids.glue.LogicalPlanAdapter;
 import org.apache.doris.nereids.parser.plsql.PLSqlLogicalPlanBuilder;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.plans.commands.ExplainCommand.ExplainLevel;
+import org.apache.doris.nereids.trees.plans.commands.load.ImportColumnInfo;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
 import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.plugin.DialectConverterPlugin;
@@ -253,6 +254,10 @@ public class NereidsParser {
     public List<Pair<LogicalPlan, StatementContext>> parseMultiple(String sql,
                                                                    @Nullable LogicalPlanBuilder logicalPlanBuilder) {
         return parse(sql, logicalPlanBuilder, DorisParser::multiStatements);
+    }
+
+    public List<ImportColumnInfo> parseImportColumns(String importColumns) {
+        return parse(importColumns, DorisParser::importColumnsStatement);
     }
 
     public Expression parseExpression(String expression) {

@@ -350,7 +350,6 @@ unsupportedLoadStatement
     | importPrecedingFilterStatement                                                #importPrecedingFilterStatementAlias
     | importWhereStatement                                                          #importWhereStatementAlias
     | importDeleteOnStatement                                                       #importDeleteOnStatementAlias
-    | importColumnsStatement                                                        #importColumnsStatementAlias
     ;
 
 loadProperty
