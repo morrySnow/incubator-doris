@@ -117,14 +117,13 @@ public:
         bool valid =
                 cast_type(block.get_by_position(arguments[1]).type.get(), [&](const auto& type) {
                     using DataType = std::decay_t<decltype(type)>;
+                    using T = typename DataType::FieldType;
                     using ColVecData =
-                            std::conditional_t<is_number(DataType::PType),
-                                               ColumnVector<DataType::PType>, ColumnString>;
+                            std::conditional_t<is_number(T), ColumnVector<T>, ColumnString>;
                     if (auto col = check_and_get_column<ColVecData>(
                                            block.get_by_position(arguments[1]).column.get()) ||
                                    is_column_const(*block.get_by_position(arguments[1]).column)) {
-                        execute_inner<ColVecData, DataType::PType>(block, arguments, result,
-                                                                   input_rows_count);
+                        execute_inner<ColVecData, T>(block, arguments, result, input_rows_count);
                         return true;
                     }
                     return false;
