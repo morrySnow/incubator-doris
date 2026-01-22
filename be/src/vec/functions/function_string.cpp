@@ -78,7 +78,7 @@ static const std::map<std::string_view, Int128> UNITS = {
 
 struct ParseDataSize {
     using ReturnType = DataTypeInt128;
-    static constexpr auto PrimitiveTypeImpl = PrimitiveType::TYPE_STRING;
+    static constexpr auto TYPE_INDEX = TypeIndex::String;
     using Type = String;
     using ReturnColumnType = ColumnInt128;
 
