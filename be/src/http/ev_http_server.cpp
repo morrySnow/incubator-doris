@@ -210,6 +210,8 @@ SSL_CTX* EvHttpServer::_create_ssl_context() {
 
     maybe_set_ssl_keylog_callback(ssl_ctx);
 
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_TICKET);
+
     return ssl_ctx;
 }
 
