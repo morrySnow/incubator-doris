@@ -54,6 +54,7 @@ import org.apache.doris.nereids.rules.rewrite.CountDistinctRewrite;
 import org.apache.doris.nereids.rules.rewrite.CountLiteralRewrite;
 import org.apache.doris.nereids.rules.rewrite.CreatePartitionTopNFromWindow;
 import org.apache.doris.nereids.rules.rewrite.DeferMaterializeTopNResult;
+import org.apache.doris.nereids.rules.rewrite.DistinctWindowExpression;
 import org.apache.doris.nereids.rules.rewrite.EliminateAggCaseWhen;
 import org.apache.doris.nereids.rules.rewrite.EliminateAggregate;
 import org.apache.doris.nereids.rules.rewrite.EliminateAssertNumRows;
@@ -259,6 +260,7 @@ public class Rewriter extends AbstractBatchJobExecutor {
                 topic("Window analysis",
                         topDown(
                                 new ExtractAndNormalizeWindowExpression(),
+                                new DistinctWindowExpression(),
                                 new CheckAndStandardizeWindowFunctionAndFrame(),
                                 new SimplifyWindowExpression()
                         )
