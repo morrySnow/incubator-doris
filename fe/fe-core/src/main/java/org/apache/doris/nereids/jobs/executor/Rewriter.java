@@ -134,6 +134,7 @@ import org.apache.doris.nereids.rules.rewrite.PushProjectThroughUnion;
 import org.apache.doris.nereids.rules.rewrite.ReduceAggregateChildOutputRows;
 import org.apache.doris.nereids.rules.rewrite.ReorderJoin;
 import org.apache.doris.nereids.rules.rewrite.RewriteCteChildren;
+import org.apache.doris.nereids.rules.rewrite.RewriteSearchToSlots;
 import org.apache.doris.nereids.rules.rewrite.SetPreAggStatus;
 import org.apache.doris.nereids.rules.rewrite.SimplifyWindowExpression;
 import org.apache.doris.nereids.rules.rewrite.SplitLimit;
@@ -372,6 +373,10 @@ public class Rewriter extends AbstractBatchJobExecutor {
                         topDown(new PushDownAggThroughJoinOnPkFk()),
                         topDown(new PullUpJoinFromUnionAll())
                 ),
+                // Rewrite search function to add slot references before Limit optimization
+                // This must run after PUSH_DOWN_FILTERS (so Filter is on OlapScan)
+                // and before LimitSortToTopN (which changes plan structure)
+                topDown(new RewriteSearchToSlots()),
 
                 topic("Limit optimization",
                         // TODO: the logical plan should not contains any phase information,

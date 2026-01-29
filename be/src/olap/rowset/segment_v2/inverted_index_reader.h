@@ -235,6 +235,8 @@ public:
     static Status create_index_searcher(IndexSearcherBuilder* index_searcher_builder,
                                         lucene::store::Directory* dir, IndexSearcherPtr* searcher,
                                         size_t& reader_size);
+    std::shared_ptr<InvertedIndexFileReader> get_index_file_reader() const { return _inverted_index_file_reader; }
+    const TabletIndex& get_index_meta() const { return _index_meta; }
 
 protected:
     Status match_index_search(const io::IOContext* io_ctx, OlapReaderStatistics* stats,
@@ -482,43 +484,7 @@ private:
     storage_val _value;
 };
 
-class InvertedIndexIterator {
-    ENABLE_FACTORY_CREATOR(InvertedIndexIterator);
-
-public:
-    InvertedIndexIterator(const io::IOContext& io_ctx, OlapReaderStatistics* stats,
-                          RuntimeState* runtime_state);
-
-    void add_reader(InvertedIndexReaderType type, const InvertedIndexReaderPtr& reader);
-
-    Status read_from_inverted_index(const vectorized::IndexFieldNameAndTypePair& name_with_type,
-                                    const void* query_value, InvertedIndexQueryType query_type,
-                                    uint32_t segment_num_rows,
-
-                                    std::shared_ptr<roaring::Roaring>& bit_map,
-                                    bool skip_try = false);
-
-    Status try_read_from_inverted_index(const InvertedIndexReaderPtr& reader,
-                                        const std::string& column_name, const void* query_value,
-                                        InvertedIndexQueryType query_type, uint32_t* count);
-
-    Status read_null_bitmap(InvertedIndexQueryCacheHandle* cache_handle,
-                            lucene::store::Directory* dir = nullptr);
-
-    [[nodiscard]] Result<bool> has_null();
-
-    InvertedIndexReaderPtr get_reader(InvertedIndexReaderType type);
-
-private:
-    Result<InvertedIndexReaderPtr> _select_best_reader(const vectorized::DataTypePtr& column_type,
-                                                       InvertedIndexQueryType query_type);
-    Result<InvertedIndexReaderPtr> _select_best_reader();
-
-    io::IOContext _io_ctx;
-    OlapReaderStatistics* _stats = nullptr;
-    RuntimeState* _runtime_state = nullptr;
-    std::unordered_map<InvertedIndexReaderType, InvertedIndexReaderPtr> _readers;
-};
+// NOTE: InvertedIndexIterator has been moved to inverted_index_iterator.h
 
 } // namespace segment_v2
 } // namespace doris

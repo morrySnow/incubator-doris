@@ -76,12 +76,15 @@ enum TExprNodeType {
   COLUMN_REF,
 
   IPV4_LITERAL,
-  IPV6_LITERAL
+  IPV6_LITERAL,
 
   // only used in runtime filter
   // to prevent push to storage layer
   NULL_AWARE_IN_PRED,
   NULL_AWARE_BINARY_PRED,
+
+  // for search DSL function
+  SEARCH_EXPR,
 }
 
 //enum TAggregationOp {
@@ -219,7 +222,41 @@ struct TFunctionCallExpr {
 
 struct TSchemaChangeExpr {
   // target schema change table
-  1: optional i64 table_id 
+  1: optional i64 table_id
+}
+
+// Search DSL parameter structure
+
+// Occur type for Lucene-style boolean queries
+enum TSearchOccur {
+  MUST,      // Term must appear (equivalent to +term)
+  SHOULD,    // Term should appear (optional, but contributes to matching)
+  MUST_NOT   // Term must not appear (equivalent to -term)
+}
+
+struct TSearchClause {
+  1: required string clause_type  // TERM, QUOTED, PREFIX, WILDCARD, REGEXP, RANGE, LIST, ANY_ALL, AND, OR, NOT, MATCH_ALL_DOCS, OCCUR_BOOLEAN
+  2: optional string field_name   // Field name for leaf clauses
+  3: optional string value        // Search value for leaf clauses
+  4: optional list<TSearchClause> children  // Child clauses for compound clauses (AND, OR, NOT, OCCUR_BOOLEAN)
+  5: optional TSearchOccur occur  // Occur type for this clause (used with OCCUR_BOOLEAN parent)
+  6: optional i32 minimum_should_match  // Minimum number of SHOULD clauses that must match (for OCCUR_BOOLEAN)
+}
+
+struct TSearchFieldBinding {
+  1: required string field_name   // Field name from DSL (may include path like "field.subcolumn")
+  2: required i32 slot_index      // Index in the slot reference arguments
+  3: optional string parent_field_name    // Parent field name for variant subcolumns
+  4: optional string subcolumn_path       // Subcolumn path for variant fields (e.g., "subcolumn" or "sub1.sub2")
+  5: optional bool is_variant_subcolumn   // True if this is a variant subcolumn access
+}
+
+struct TSearchParam {
+  1: required string original_dsl         // Original DSL string for debugging
+  2: required TSearchClause root          // Parsed AST root
+  3: required list<TSearchFieldBinding> field_bindings  // Field to slot mappings
+  4: optional string default_operator     // "and" or "or" for TERM tokenization (default: "or")
+  5: optional i32 minimum_should_match    // Minimum number of SHOULD clauses that must match (for Lucene mode TERM tokenization)
 }
 
 // This is essentially a union over the subclasses of Expr.
@@ -269,6 +306,7 @@ struct TExprNode {
   34: optional TIPv4Literal ipv4_literal
   35: optional TIPv6Literal ipv6_literal
   36: optional string label // alias name, a/b in `select xxx as a, count(1) as b`
+  37: optional TSearchParam search_param
 }
 
 // A flattened representation of a tree of Expr nodes, obtained by depth-first

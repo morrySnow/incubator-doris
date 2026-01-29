@@ -24,6 +24,7 @@
 #include "olap/inverted_index_parser.h"
 #include "olap/olap_common.h"
 #include "olap/rowset/segment_v2/inverted_index_cache.h"
+#include "olap/rowset/segment_v2/inverted_index_iterator.h"
 #include "olap/rowset/segment_v2/inverted_index_reader.h"
 #include "olap/schema.h"
 #include "olap/tablet_schema.h"

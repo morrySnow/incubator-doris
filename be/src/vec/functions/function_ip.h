@@ -47,6 +47,7 @@
 #include "vec/functions/function.h"
 #include "vec/functions/function_helpers.h"
 #include "vec/runtime/ip_address_cidr.h"
+#include "olap/rowset/segment_v2/inverted_index_iterator.h"
 
 namespace doris::vectorized {
 

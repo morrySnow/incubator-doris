@@ -54,6 +54,7 @@
 #include "vec/exprs/vliteral.h"
 #include "vec/exprs/vmap_literal.h"
 #include "vec/exprs/vmatch_predicate.h"
+#include "vec/exprs/vsearch.h"
 #include "vec/exprs/vslot_ref.h"
 #include "vec/exprs/vstruct_literal.h"
 #include "vec/exprs/vtuple_is_null_predicate.h"
@@ -175,6 +176,13 @@ bool VExpr::is_acting_on_a_slot(const VExpr& expr) {
 
     auto is_a_slot = std::any_of(children.begin(), children.end(),
                                  [](const auto& child) { return is_acting_on_a_slot(*child); });
+
+    // VSearchExpr should be treated as acting on slots for pushdown purposes,
+    // even though it doesn't have slot children in the traditional sense.
+    // It acts on columns specified in field_bindings via inverted index.
+    if (expr.node_type() == TExprNodeType::SEARCH_EXPR) {
+        return true;
+    }
 
     return is_a_slot ? true : (expr.node_type() == TExprNodeType::SLOT_REF);
 }
@@ -324,6 +332,10 @@ Status VExpr::create_expr(const TExprNode& expr_node, VExprSPtr& expr) {
         }
         case TExprNodeType::TUPLE_IS_NULL_PRED: {
             expr = VTupleIsNullPredicate::create_shared(expr_node);
+            break;
+        }
+        case TExprNodeType::SEARCH_EXPR: {
+            expr = VSearchExpr::create_shared(expr_node);
             break;
         }
         default:

@@ -508,12 +508,19 @@ Status SegmentIterator::_get_row_ranges_by_column_conditions() {
 
     RETURN_IF_ERROR(_apply_bitmap_index());
     {
+        bool has_inverted_index = has_inverted_index_in_iterators();
+        // Also need to call _apply_index_expr() if there are common expressions to push down
+        // (e.g., SearchExpression which may use variant subcolumn indexes)
+        bool has_common_expr = !_common_expr_ctxs_push_down.empty();
+
         if (_opts.runtime_state &&
             _opts.runtime_state->query_options().enable_inverted_index_query &&
-            has_inverted_index_in_iterators()) {
+            (has_inverted_index || has_common_expr)) {
             SCOPED_RAW_TIMER(&_opts.stats->inverted_index_filter_timer);
             size_t input_rows = _row_bitmap.cardinality();
-            RETURN_IF_ERROR(_apply_inverted_index());
+            if (has_inverted_index) {
+                RETURN_IF_ERROR(_apply_inverted_index());
+            }
             RETURN_IF_ERROR(_apply_index_expr());
             for (auto it = _common_expr_ctxs_push_down.begin();
                  it != _common_expr_ctxs_push_down.end();) {

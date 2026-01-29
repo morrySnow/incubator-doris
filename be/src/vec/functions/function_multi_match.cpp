@@ -26,6 +26,7 @@
 
 #include "io/fs/file_reader.h"
 #include "olap/rowset/segment_v2/inverted_index/query/phrase_prefix_query.h"
+#include "olap/rowset/segment_v2/inverted_index_iterator.h"
 #include "olap/rowset/segment_v2/segment_iterator.h"
 #include "vec/columns/column.h"
 #include "vec/exprs/vslot_ref.h"

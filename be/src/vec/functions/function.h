@@ -50,6 +50,7 @@ namespace doris::vectorized {
 struct FunctionAttr {
     bool enable_decimal256 {false};
     bool new_is_ip_address_in_range {false};
+    bool new_version_unix_timestamp {false}; // Added for cherry-pick compatibility
 };
 
 #define RETURN_REAL_TYPE_FOR_DATEV2_FUNCTION(TYPE)                                       \

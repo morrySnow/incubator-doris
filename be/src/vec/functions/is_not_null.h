@@ -39,6 +39,7 @@
 #include "vec/core/field.h"
 #include "vec/data_types/data_type_number.h"
 #include "vec/functions/function.h"
+#include "olap/rowset/segment_v2/inverted_index_iterator.h"
 
 namespace doris {
 class FunctionContext;
