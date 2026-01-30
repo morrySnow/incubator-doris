@@ -1417,6 +1417,9 @@ DEFINE_Validator(s3_put_token_per_second, [](int64_t config) -> bool { return co
 
 DEFINE_mInt64(s3_put_token_limit, "0");
 
+DEFINE_mBool(enable_obj_storage_client_cache, "true");
+DEFINE_mBool(aws_client_disable_imds, "false");
+
 DEFINE_String(trino_connector_plugin_dir, "${DORIS_HOME}/plugins/connectors");
 
 // ca_cert_file is in this path by default, Normally no modification is required

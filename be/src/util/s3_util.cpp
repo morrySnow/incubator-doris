@@ -203,7 +203,7 @@ std::shared_ptr<io::ObjStorageClient> S3ClientFactory::create(const S3ClientConf
     }
 
     uint64_t hash = s3_conf.get_hash();
-    {
+    if (config::enable_obj_storage_client_cache) {
         std::lock_guard l(_lock);
         auto it = _cache.find(hash);
         if (it != _cache.end()) {
@@ -215,8 +215,7 @@ std::shared_ptr<io::ObjStorageClient> S3ClientFactory::create(const S3ClientConf
                               ? _create_azure_client(s3_conf)
                               : _create_s3_client(s3_conf);
 
-    {
-        uint64_t hash = s3_conf.get_hash();
+    if (config::enable_obj_storage_client_cache) {
         std::lock_guard l(_lock);
         _cache[hash] = obj_client;
     }

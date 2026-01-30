@@ -148,6 +148,7 @@ public:
         // So here we use a static instance, and deep copy every time
         // to avoid unnecessary operations.
         static Aws::Client::ClientConfiguration instance;
+        instance.disableIMDS = config::aws_client_disable_imds;
         return instance;
     }
 
