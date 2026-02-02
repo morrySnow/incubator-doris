@@ -44,13 +44,10 @@ public class BackendServiceClient {
     private final ManagedChannel channel;
     private final long execPlanTimeout;
 
-    public BackendServiceClient(TNetworkAddress address, String resolvedIp, Executor executor) {
+    public BackendServiceClient(TNetworkAddress address, Executor executor) {
         this.address = address;
 
-        // Use resolved IP address instead of hostname to avoid DNS resolution issues
-        // If resolvedIp is empty or null, fallback to hostname
-        String targetHost = (resolvedIp != null && !resolvedIp.isEmpty()) ? resolvedIp : address.getHostname();
-        NettyChannelBuilder builder = NettyChannelBuilder.forAddress(targetHost, address.getPort())
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress(address.getHostname(), address.getPort())
                 .executor(executor).keepAliveTime(Config.grpc_keep_alive_second, TimeUnit.SECONDS)
                 .flowControlWindow(Config.grpc_max_message_size_bytes)
                 .keepAliveWithoutCalls(true)

@@ -73,12 +73,9 @@ void DNSCache::_refresh_cache() {
             std::transform(cache.begin(), cache.end(), std::inserter(keys, keys.end()),
                            [](const auto& pair) { return pair.first; });
         }
+        Status st;
         for (auto& key : keys) {
-            Status st = _update(key);
-            if (!st.ok()) {
-                LOG(WARNING) << "Failed to update DNS cache for hostname " << key << ": "
-                             << st.to_string();
-            }
+            st = _update(key);
         }
     }
 }
