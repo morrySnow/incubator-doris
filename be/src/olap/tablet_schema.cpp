@@ -832,6 +832,12 @@ void TabletIndex::init_from_thrift(const TOlapTableIndex& index,
             _properties[kv.first] = kv.second;
         }
     }
+    // Fill in lower_case default value to align with to_schema_pb behavior
+    if (!_properties.empty() && _index_type == IndexType::INVERTED) {
+        if (!_properties.contains(INVERTED_INDEX_PARSER_LOWERCASE_KEY)) {
+            _properties[INVERTED_INDEX_PARSER_LOWERCASE_KEY] = INVERTED_INDEX_PARSER_TRUE;
+        }
+    }
 }
 
 void TabletIndex::init_from_thrift(const TOlapTableIndex& index,
@@ -857,6 +863,12 @@ void TabletIndex::init_from_thrift(const TOlapTableIndex& index,
     if (index.__isset.properties) {
         for (auto kv : index.properties) {
             _properties[kv.first] = kv.second;
+        }
+    }
+    // Fill in lower_case default value to align with to_schema_pb behavior
+    if (!_properties.empty() && _index_type == IndexType::INVERTED) {
+        if (!_properties.contains(INVERTED_INDEX_PARSER_LOWERCASE_KEY)) {
+            _properties[INVERTED_INDEX_PARSER_LOWERCASE_KEY] = INVERTED_INDEX_PARSER_TRUE;
         }
     }
 }
