@@ -39,6 +39,19 @@
 
 namespace doris {
 
+static int64_t file_time_to_unix_millis(std::filesystem::file_time_type tp) {
+    // std::filesystem::file_time_type uses an implementation-defined clock/epoch.
+    // Converting time_since_epoch() directly to milliseconds may yield surprising
+    // (often negative) values on some standard libraries (e.g. libc++).
+    // For logging, approximate a system_clock time_point by anchoring on "now".
+    using namespace std::chrono;
+    const auto now_sys = system_clock::now();
+    const auto now_file = std::filesystem::file_time_type::clock::now();
+    const auto delta = tp - now_file;
+    const auto sys_tp = now_sys + duration_cast<system_clock::duration>(delta);
+    return static_cast<int64_t>(duration_cast<milliseconds>(sys_tp.time_since_epoch()).count());
+}
+
 std::string read_file_to_string(const std::filesystem::path& path, const char* label) {
     if (path.empty()) {
         auto msg = fmt::format("{} path is empty", label);
@@ -308,21 +321,18 @@ bool CertificateManager::check_certificate_file(const std::string& path,
     if (!state->has_value) {
         state->write_time = current;
         state->has_value = true;
-        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                              state->write_time.time_since_epoch())
-                              .count();
-        LOG(INFO) << label << " file write time initialized, ms since epoch: " << millis;
+        const int64_t unix_ms = file_time_to_unix_millis(state->write_time);
+        LOG(INFO) << label << " file write time initialized, unix ms since epoch: " << unix_ms
+                  << ", local: " << ToStringFromUnixMillis(unix_ms);
         return true;
     }
 
     if (current != state->write_time) {
-        auto old_millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  state->write_time.time_since_epoch())
-                                  .count();
-        auto new_millis =
-                std::chrono::duration_cast<std::chrono::milliseconds>(current.time_since_epoch())
-                        .count();
-        LOG(INFO) << label << " file write time changed: " << old_millis << " -> " << new_millis;
+        const int64_t old_unix_ms = file_time_to_unix_millis(state->write_time);
+        const int64_t new_unix_ms = file_time_to_unix_millis(current);
+        LOG(INFO) << label << " file write time changed, unix ms since epoch: " << old_unix_ms
+                  << " (" << ToStringFromUnixMillis(old_unix_ms) << ") -> " << new_unix_ms << " ("
+                  << ToStringFromUnixMillis(new_unix_ms) << ")";
         state->write_time = current;
         state->has_value = true;
         return true;
