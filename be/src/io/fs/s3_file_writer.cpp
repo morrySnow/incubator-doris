@@ -50,6 +50,7 @@ bvar::Adder<uint64_t> s3_file_being_written("s3_file_writer_file_being_written")
 bvar::Adder<uint64_t> s3_file_writer_async_close_queuing("s3_file_writer_async_close_queuing");
 bvar::Adder<uint64_t> s3_file_writer_async_close_processing(
         "s3_file_writer_async_close_processing");
+bvar::Adder<uint64_t> s3_put_object_failed_total("s3_put_object_failed_total");
 
 S3FileWriter::S3FileWriter(std::shared_ptr<ObjClientHolder> client, std::string bucket,
                            std::string key, const FileWriterOptions* opts)
@@ -460,6 +461,7 @@ void S3FileWriter::_put_object(UploadFileBuffer& buf) {
         LOG_WARNING("failed to put object, put object failed because {}, file path {}",
                     resp.status.msg, _obj_storage_path_opts.path.native());
         buf.set_status({resp.status.code, std::move(resp.status.msg)});
+        s3_put_object_failed_total << 1;
         return;
     }
 
@@ -467,6 +469,7 @@ void S3FileWriter::_put_object(UploadFileBuffer& buf) {
                                  "put_object");
     if (!st.ok()) {
         buf.set_status(st);
+        s3_put_object_failed_total << 1;
         return;
     }
 

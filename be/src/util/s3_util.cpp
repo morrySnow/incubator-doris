@@ -203,6 +203,9 @@ std::shared_ptr<io::ObjStorageClient> S3ClientFactory::create(const S3ClientConf
     }
 
     uint64_t hash = s3_conf.get_hash();
+
+    LOG(INFO) << "s3 client hash: " << hash << ", s3_conf: " << s3_conf.to_string();
+
     if (config::enable_obj_storage_client_cache) {
         std::lock_guard l(_lock);
         auto it = _cache.find(hash);

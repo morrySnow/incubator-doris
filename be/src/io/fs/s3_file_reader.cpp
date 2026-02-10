@@ -58,6 +58,7 @@ bvar::PerSecond<bvar::Adder<uint64_t>> s3_read_througthput("s3_file_reader", "s3
 bvar::PerSecond<bvar::Adder<uint64_t>> s3_get_request_qps("s3_file_reader", "s3_get_request",
                                                           &s3_file_reader_read_counter);
 bvar::LatencyRecorder s3_file_reader_latency("s3_file_reader", "s3_latency");
+bvar::Adder<uint64_t> s3_get_object_failed_total("s3_get_object_failed_total");
 
 Result<FileReaderSPtr> S3FileReader::create(std::shared_ptr<const ObjClientHolder> client,
                                             std::string bucket, std::string key, int64_t file_size,
@@ -176,6 +177,7 @@ Status S3FileReader::read_at_impl(size_t offset, Slice result, size_t* bytes_rea
                 total_sleep_time += wait_time;
                 continue;
             } else {
+                s3_get_object_failed_total << 1;
                 // Handle other errors
                 return std::move(Status(resp.status.code, std::move(resp.status.msg))
                                          .append("failed to read"));
