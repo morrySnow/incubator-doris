@@ -37,6 +37,7 @@ void register_function_comparison(SimpleFunctionFactory& factory);
 void register_function_comparison_eq_for_null(SimpleFunctionFactory& factory);
 void register_function_hll(SimpleFunctionFactory& factory);
 void register_function_logical(SimpleFunctionFactory& factory);
+void register_function_case(SimpleFunctionFactory& factory);
 void register_function_cast(SimpleFunctionFactory& factory);
 void register_function_encode_varchar(SimpleFunctionFactory& factory);
 void register_function_conv(SimpleFunctionFactory& factory);
@@ -321,13 +322,14 @@ public:
             register_function_ignore(instance);
             register_function_variant_element(instance);
             register_function_multi_match(instance);
+            register_function_case(instance);
             register_function_search(instance);
             register_function_split_by_regexp(instance);
             register_function_assert_true(instance);
-// NOTE: register_function_throw_exception removed - no implementation in hubspot branch
-// #if defined(BE_TEST) && !defined(BE_BENCHMARK)
-//             register_function_throw_exception(instance);
-// #endif
+            // NOTE: register_function_throw_exception removed - no implementation in hubspot branch
+            // #if defined(BE_TEST) && !defined(BE_BENCHMARK)
+            //             register_function_throw_exception(instance);
+            // #endif
             register_function_variant_type(instance);
         });
         return instance;
