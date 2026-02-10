@@ -232,7 +232,14 @@ Status FieldReaderResolver::resolve(const std::string& field_name,
     resolved.query_type = query_type;
     resolved.inverted_reader = inverted_reader;
     resolved.lucene_reader = reader_holder;
-    resolved.index_properties = inverted_reader->get_index_properties();
+    // Prefer FE-provided index_properties (needed for variant subcolumn field_pattern matching)
+    auto fb_it = _field_binding_map.find(field_name);
+    if (fb_it != _field_binding_map.end() && fb_it->second->__isset.index_properties
+            && !fb_it->second->index_properties.empty()) {
+        resolved.index_properties = fb_it->second->index_properties;
+    } else {
+        resolved.index_properties = inverted_reader->get_index_properties();
+    }
     resolved.binding_key = binding_key;
 
     _binding_readers[binding_key] = reader_holder;
@@ -864,20 +871,13 @@ Status FunctionSearch::build_leaf_query(const TSearchClause& clause,
         }
 
         if (clause_type == "REGEXP") {
-            // Apply lowercase only if:
-            // 1. There's a parser/analyzer (otherwise lower_case has no effect on indexing)
-            // 2. lower_case is explicitly set to "true"
-            bool has_parser = inverted_index::InvertedIndexAnalyzer::should_analyzer(
-                    binding.index_properties);
-            std::string lowercase_setting =
-                    get_parser_lowercase_from_properties(binding.index_properties);
-            bool should_lowercase =
-                    has_parser && (lowercase_setting == INVERTED_INDEX_PARSER_TRUE);
-            std::string pattern = should_lowercase ? to_lower(value) : value;
-            *out = std::make_shared<query_v2::RegexpQuery>(context, field_wstr, pattern);
+            // REGEXP patterns are NOT lowercased, matching Elasticsearch query_string behavior.
+            // ES regex queries match directly against the term dictionary without normalization.
+            // Users must write lowercase regex patterns (e.g., /ab.*/) to match lowercased terms.
+            // This is consistent with match_regexp behavior.
+            *out = std::make_shared<query_v2::RegexpQuery>(context, field_wstr, value);
             VLOG_DEBUG << "search: REGEXP clause processed, field=" << field_name << ", pattern='"
-                       << pattern << "' (original='" << value << "', has_parser=" << has_parser
-                       << ", lower_case=" << lowercase_setting << ")";
+                       << value << "'";
             return Status::OK();
         }
 

@@ -64,11 +64,12 @@ public:
               _iterators(iterators),
               _context(std::move(context)),
               _field_bindings(field_bindings) {
-        // Build a lookup map for quick variant subcolumn checks
+        // Build lookup maps for quick access
         for (const auto& binding : _field_bindings) {
             if (binding.__isset.is_variant_subcolumn && binding.is_variant_subcolumn) {
                 _variant_subcolumn_fields.insert(binding.field_name);
             }
+            _field_binding_map[binding.field_name] = &binding;
         }
     }
 
@@ -123,6 +124,7 @@ private:
     const std::unordered_map<std::string, segment_v2::InvertedIndexIterator*>& _iterators;
     std::shared_ptr<IndexQueryContext> _context;
     std::vector<TSearchFieldBinding> _field_bindings;
+    std::unordered_map<std::string, const TSearchFieldBinding*> _field_binding_map;
     std::unordered_set<std::string> _variant_subcolumn_fields;
     // CRITICAL: _directories must be declared BEFORE _readers, _binding_readers, and _field_readers.
     // C++ destroys members in reverse order of declaration, so _directories will be destroyed
