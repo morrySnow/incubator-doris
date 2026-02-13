@@ -149,6 +149,8 @@ public:
         // to avoid unnecessary operations.
         static Aws::Client::ClientConfiguration instance;
         instance.disableIMDS = config::aws_client_disable_imds;
+        instance.lowSpeedLimit = config::aws_client_low_speed_limit;
+        instance.requestTimeoutMs = config::aws_client_request_timeout_ms;
         return instance;
     }
 
