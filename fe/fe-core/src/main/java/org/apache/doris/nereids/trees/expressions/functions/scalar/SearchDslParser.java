@@ -819,6 +819,7 @@ public class SearchDslParser {
                 if (result == null) {
                     throw new RuntimeException("Invalid search value");
                 }
+                result.setExplicitField(true);
                 return result;
             } finally {
                 // Restore previous context
@@ -1113,6 +1114,11 @@ public class SearchDslParser {
         @JsonProperty("minimumShouldMatch")
         private final Integer minimumShouldMatch;
 
+        // True when the field was explicitly specified in the query via field:term syntax
+        // (e.g., "title:music"). False for bare terms where the field is set by default.
+        // Not serialized - only used during FE-side multi-field expansion.
+        private boolean explicitField;
+
         /**
          * Constructor for JSON deserialization
          *
@@ -1224,6 +1230,15 @@ public class SearchDslParser {
          */
         public QsNode setOccur(QsOccur occur) {
             this.occur = occur;
+            return this;
+        }
+
+        public boolean isExplicitField() {
+            return explicitField;
+        }
+
+        public QsNode setExplicitField(boolean explicitField) {
+            this.explicitField = explicitField;
             return this;
         }
 
@@ -1382,11 +1397,10 @@ public class SearchDslParser {
 
             // Check if this is a leaf node (no children)
             if (isLeafNode(node)) {
-                // Check if the node has an explicit field that's NOT in the fields list
-                // If so, don't expand but still return a copy
-                String nodeField = node.getField();
-                if (nodeField != null && !nodeField.isEmpty() && !fields.contains(nodeField)) {
-                    // Explicit field not in expansion list - return a copy preserving all fields
+                // If the field was explicitly specified via field:term syntax (e.g., "title:music"),
+                // preserve it as-is without expanding. This matches ES query_string behavior where
+                // explicit field prefixes are always respected regardless of the fields parameter.
+                if (node.isExplicitField()) {
                     return new QsNode(
                             node.getType(),
                             node.getField(),
@@ -1394,7 +1408,7 @@ public class SearchDslParser {
                             null,
                             node.getOccur(),
                             node.getMinimumShouldMatch()
-                    );
+                    ).setExplicitField(true);
                 }
 
                 // Expand leaf node across all fields
@@ -1464,26 +1478,17 @@ public class SearchDslParser {
                 return new QsNode(QsClauseType.MATCH_ALL_DOCS, (List<QsNode>) null);
             }
             if (isLeafNode(node)) {
-                // Check if the node has an explicit field that's NOT in the fields list
-                String nodeField = node.getField();
-                String targetField;
-                if (nodeField != null && !nodeField.isEmpty() && !fields.contains(nodeField)) {
-                    // Explicit field not in expansion list - preserve original field
-                    targetField = nodeField;
-                } else {
-                    // Use new field
-                    targetField = field;
-                }
-
-                // Create a complete copy of the leaf node
+                // Preserve explicit field prefix (field:term syntax), use target field for bare terms
+                String targetField = node.isExplicitField() ? node.getField() : field;
                 QsNode copy = new QsNode(
                         node.getType(),
                         targetField,
                         node.getValue(),
-                        null,  // children
+                        null,
                         node.getOccur(),
                         node.getMinimumShouldMatch()
                 );
+                copy.setExplicitField(node.isExplicitField());
                 return copy;
             }
 
@@ -1518,18 +1523,9 @@ public class SearchDslParser {
                 return new QsNode(QsClauseType.MATCH_ALL_DOCS, (List<QsNode>) null);
             }
             if (isLeafNode(node)) {
-                // Check if the node has an explicit field that's NOT in the fields list
-                String nodeField = node.getField();
-                String targetField;
-                if (nodeField != null && !nodeField.isEmpty() && !fields.contains(nodeField)) {
-                    // Explicit field not in expansion list - preserve original field
-                    targetField = nodeField;
-                } else {
-                    targetField = field;
-                }
-
-                // Create complete copy
-                return new QsNode(
+                // Preserve explicit field prefix (field:term syntax), use target field for bare terms
+                String targetField = node.isExplicitField() ? node.getField() : field;
+                QsNode copy = new QsNode(
                         node.getType(),
                         targetField,
                         node.getValue(),
@@ -1537,6 +1533,8 @@ public class SearchDslParser {
                         node.getOccur(),
                         node.getMinimumShouldMatch()
                 );
+                copy.setExplicitField(node.isExplicitField());
+                return copy;
             }
 
             // Compound node - recursively process children
@@ -2278,7 +2276,11 @@ public class SearchDslParser {
             currentFieldName = fieldPath;
 
             try {
-                return visit(ctx.searchValue());
+                QsNode result = visit(ctx.searchValue());
+                if (result != null) {
+                    result.setExplicitField(true);
+                }
+                return result;
             } finally {
                 currentFieldName = previousFieldName;
             }
