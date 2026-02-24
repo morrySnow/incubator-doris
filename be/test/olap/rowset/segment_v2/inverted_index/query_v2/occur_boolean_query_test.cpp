@@ -723,7 +723,7 @@ class AllQueryMock : public Query {
 public:
     explicit AllQueryMock(uint32_t max_doc) : _max_doc(max_doc) {}
 
-    WeightPtr weight(bool /*enable_scoring*/) override {
+    WeightPtr weight() override {
         return std::make_shared<AllQueryMockWeight>(_max_doc);
     }
 
@@ -740,7 +740,7 @@ TEST_F(OccurBooleanQueryTest, MustAllQueryWithMustTerm) {
     clauses.emplace_back(Occur::MUST, std::make_shared<MockQuery>(term_docs));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -754,7 +754,7 @@ TEST_F(OccurBooleanQueryTest, SingleMustAllQuery) {
     clauses.emplace_back(Occur::MUST, std::make_shared<AllQueryMock>(100));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -770,7 +770,7 @@ TEST_F(OccurBooleanQueryTest, MultipleMustAllQueries) {
     clauses.emplace_back(Occur::MUST, std::make_shared<AllQueryMock>(100));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -787,7 +787,7 @@ TEST_F(OccurBooleanQueryTest, ShouldAllQueryOrTerm) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<MockQuery>(term_docs));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -803,7 +803,7 @@ TEST_F(OccurBooleanQueryTest, SingleShouldAllQuery) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<AllQueryMock>(100));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -820,7 +820,7 @@ TEST_F(OccurBooleanQueryTest, MustAllQueryWithShouldTerm) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<MockQuery>(should_docs));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -838,7 +838,7 @@ TEST_F(OccurBooleanQueryTest, MustAllQueryWithMustNotTerm) {
     clauses.emplace_back(Occur::MUST_NOT, std::make_shared<MockQuery>(must_not_docs));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -858,7 +858,7 @@ TEST_F(OccurBooleanQueryTest, MustAllQueryMustTermShouldTerm) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<MockQuery>(should_docs));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -874,7 +874,7 @@ TEST_F(OccurBooleanQueryTest, MustNotAllQueryReturnsEmpty) {
     clauses.emplace_back(Occur::MUST_NOT, std::make_shared<AllQueryMock>(100));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(false);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
 
     EXPECT_EQ(scorer->doc(), TERMINATED);
@@ -889,7 +889,7 @@ TEST_F(OccurBooleanQueryTest, ShouldAllQueryOrTermWithScoring) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<MockQuery>(term_docs, 2.0F));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(true);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
     auto result = collect_docs(scorer);
 
@@ -906,28 +906,29 @@ TEST_F(OccurBooleanQueryTest, MustAllQueryWithShouldTermScoring) {
     clauses.emplace_back(Occur::SHOULD, std::make_shared<MockQuery>(should_docs, 2.0F));
 
     OccurBooleanQuery query(std::move(clauses));
-    auto weight = query.weight(true);
+    auto weight = query.weight();
     auto scorer = weight->scorer(_ctx);
 
     std::set<uint32_t> should_set(should_docs.begin(), should_docs.end());
-    bool found_higher_score = false;
-    bool found_lower_score = false;
+    bool found_should_doc = false;
+    bool found_non_should_doc = false;
 
     uint32_t doc = scorer->seek(0);
     while (doc != TERMINATED) {
-        float s = scorer->score();
+        [[maybe_unused]] float s = scorer->score();
         if (should_set.count(doc) > 0) {
-            EXPECT_GT(s, 1.0F);
-            found_higher_score = true;
+            // Scoring disabled on hubspot branch (DoNothingCombiner returns 1.0F)
+            EXPECT_FLOAT_EQ(s, 1.0F);
+            found_should_doc = true;
         } else {
             EXPECT_FLOAT_EQ(s, 1.0F);
-            found_lower_score = true;
+            found_non_should_doc = true;
         }
         doc = scorer->advance();
     }
 
-    EXPECT_TRUE(found_higher_score);
-    EXPECT_TRUE(found_lower_score);
+    EXPECT_TRUE(found_should_doc);
+    EXPECT_TRUE(found_non_should_doc);
 }
 
 } // namespace doris::segment_v2::inverted_index::query_v2

@@ -62,7 +62,7 @@ public:
     }
 
     bool skipTo(const int32_t target) override { return false; }
-    void skipToBlock(const int32_t target) {}
+    void skipToBlock(const int32_t target) override {}
 
     void close() override {}
     lucene::index::TermPositions* __asTermPositions() override { return nullptr; }
@@ -121,7 +121,7 @@ public:
     }
 
     bool skipTo(const int32_t target) override { return false; }
-    void skipToBlock(const int32_t target) {}
+    void skipToBlock(const int32_t target) override {}
 
     void close() override {}
     lucene::index::TermPositions* __asTermPositions() override { return this; }
@@ -133,8 +133,8 @@ public:
     bool isPayloadAvailable() const override { return false; }
     int32_t docFreq() override { return _doc_freq; }
 
-    void addLazySkipProxCount(int32_t count) { _prox_idx += count; }
-    int32_t nextDeltaPosition() {
+    void addLazySkipProxCount(int32_t count) override { _prox_idx += count; }
+    int32_t nextDeltaPosition() override {
         if (_prox_idx < _deltas.size()) {
             return _deltas[_prox_idx++];
         }

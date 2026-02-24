@@ -3451,8 +3451,8 @@ TEST(function_string_test, function_unicode_normalize_nfc_basic) {
     std::string func_name = "unicode_normalize";
 
     InputTypeSet input_types = {
-            PrimitiveType::TYPE_VARCHAR,
-            Consted {PrimitiveType::TYPE_VARCHAR},
+            TypeIndex::String,
+            Consted {TypeIndex::String},
     };
 
     std::string cafe_decomposed = std::string("Cafe\xCC\x81");

@@ -114,8 +114,6 @@ static std::shared_ptr<lucene::index::IndexReader> make_shared_reader(
 
 TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQuery) {
     auto context = std::make_shared<IndexQueryContext>();
-    context->collection_statistics = std::make_shared<CollectionStatistics>();
-    context->collection_similarity = std::make_shared<CollectionSimilarity>();
 
     auto* dir = FSDirectory::getDirectory(kTestDir.c_str());
     auto reader_holder = make_shared_reader(lucene::index::IndexReader::open(dir, true));
@@ -136,15 +134,14 @@ TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQuery) {
 
     auto phrase_query = std::make_shared<PhraseQuery>(context, field, term_infos);
 
-    uint32_t max_doc = reader_holder->maxDoc();
-    auto all_query = std::make_shared<AllQuery>(max_doc);
+    auto all_query = std::make_shared<AllQuery>();
 
     std::vector<std::pair<Occur, QueryPtr>> clauses;
     clauses.emplace_back(Occur::SHOULD, all_query);
     clauses.emplace_back(Occur::MUST_NOT, phrase_query);
 
     OccurBooleanQuery boolean_query(std::move(clauses));
-    auto weight = boolean_query.weight(false);
+    auto weight = boolean_query.weight();
 
     QueryExecutionContext exec_ctx;
     exec_ctx.segment_num_rows = reader_holder->maxDoc();
@@ -179,8 +176,6 @@ TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQuery) {
 
 TEST_F(OccurBooleanQueryRealIndexTest, PhraseQueryOnly) {
     auto context = std::make_shared<IndexQueryContext>();
-    context->collection_statistics = std::make_shared<CollectionStatistics>();
-    context->collection_similarity = std::make_shared<CollectionSimilarity>();
 
     auto* dir = FSDirectory::getDirectory(kTestDir.c_str());
     auto reader_holder = make_shared_reader(lucene::index::IndexReader::open(dir, true));
@@ -200,7 +195,7 @@ TEST_F(OccurBooleanQueryRealIndexTest, PhraseQueryOnly) {
     }
 
     auto phrase_query = std::make_shared<PhraseQuery>(context, field, term_infos);
-    auto weight = phrase_query->weight(false);
+    auto weight = phrase_query->weight();
 
     QueryExecutionContext exec_ctx;
     exec_ctx.segment_num_rows = reader_holder->maxDoc();
@@ -233,8 +228,6 @@ TEST_F(OccurBooleanQueryRealIndexTest, PhraseQueryOnly) {
 
 TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQueryNonExistent) {
     auto context = std::make_shared<IndexQueryContext>();
-    context->collection_statistics = std::make_shared<CollectionStatistics>();
-    context->collection_similarity = std::make_shared<CollectionSimilarity>();
 
     auto* dir = FSDirectory::getDirectory(kTestDir.c_str());
     auto reader_holder = make_shared_reader(lucene::index::IndexReader::open(dir, true));
@@ -255,15 +248,14 @@ TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQueryNonExistent) {
 
     auto phrase_query = std::make_shared<PhraseQuery>(context, field, term_infos);
 
-    uint32_t max_doc = reader_holder->maxDoc();
-    auto all_query = std::make_shared<AllQuery>(max_doc);
+    auto all_query = std::make_shared<AllQuery>();
 
     std::vector<std::pair<Occur, QueryPtr>> clauses;
     clauses.emplace_back(Occur::SHOULD, all_query);
     clauses.emplace_back(Occur::MUST_NOT, phrase_query);
 
     OccurBooleanQuery boolean_query(std::move(clauses));
-    auto weight = boolean_query.weight(false);
+    auto weight = boolean_query.weight();
 
     QueryExecutionContext exec_ctx;
     exec_ctx.segment_num_rows = reader_holder->maxDoc();
@@ -287,8 +279,6 @@ TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQueryNonExistent) {
 
 TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQueryExcludesPartial) {
     auto context = std::make_shared<IndexQueryContext>();
-    context->collection_statistics = std::make_shared<CollectionStatistics>();
-    context->collection_similarity = std::make_shared<CollectionSimilarity>();
 
     auto* dir = FSDirectory::getDirectory(kTestDir.c_str());
     auto reader_holder = make_shared_reader(lucene::index::IndexReader::open(dir, true));
@@ -309,15 +299,14 @@ TEST_F(OccurBooleanQueryRealIndexTest, NotPhraseQueryExcludesPartial) {
 
     auto phrase_query = std::make_shared<PhraseQuery>(context, field, term_infos);
 
-    uint32_t max_doc = reader_holder->maxDoc();
-    auto all_query = std::make_shared<AllQuery>(max_doc);
+    auto all_query = std::make_shared<AllQuery>();
 
     std::vector<std::pair<Occur, QueryPtr>> clauses;
     clauses.emplace_back(Occur::SHOULD, all_query);
     clauses.emplace_back(Occur::MUST_NOT, phrase_query);
 
     OccurBooleanQuery boolean_query(std::move(clauses));
-    auto weight = boolean_query.weight(false);
+    auto weight = boolean_query.weight();
 
     QueryExecutionContext exec_ctx;
     exec_ctx.segment_num_rows = reader_holder->maxDoc();

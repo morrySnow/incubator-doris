@@ -31,7 +31,7 @@ FileBlockSPtr create_block(int idx) {
     key.offset = static_cast<size_t>(idx * 16);
     key.meta.expiration_time = 0;
     key.meta.type = FileCacheType::NORMAL;
-    key.meta.tablet_id = idx;
+    // key.meta.tablet_id = idx; // TODO: KeyMeta doesn't have tablet_id field
     return std::make_shared<FileBlock>(key, /*size*/ 1, /*mgr*/ nullptr, FileBlock::State::EMPTY);
 }
 

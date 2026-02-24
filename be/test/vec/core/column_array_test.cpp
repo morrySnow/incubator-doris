@@ -108,7 +108,7 @@ TEST(ColumnArrayTest, StringArrayTest) {
     }
 }
 
-TEST(ColumnArrayTest, String64ArrayTest) {
+TEST(ColumnArrayCoreTest, String64ArrayTest) {
     auto off_column = ColumnVector<ColumnArray::Offset64>::create();
     auto str64_column = ColumnString64::create();
     // init column array with [["abc","d"],["ef"],[], [""]];
@@ -155,7 +155,7 @@ TEST(ColumnArrayTest, String64ArrayTest) {
     EXPECT_EQ(get<std::string>(v[0]), vals[3]);
 }
 
-TEST(ColumnArrayTest, IntArrayPermuteTest) {
+TEST(ColumnArrayCoreTest, IntArrayPermuteTest) {
     auto off_column = ColumnVector<ColumnArray::Offset64>::create();
     auto data_column = ColumnVector<int32_t>::create();
     // init column array with [[1,2,3],[],[4],[5,6]]
