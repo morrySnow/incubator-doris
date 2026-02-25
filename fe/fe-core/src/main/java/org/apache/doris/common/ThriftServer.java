@@ -18,6 +18,7 @@
 package org.apache.doris.common;
 
 import org.apache.doris.common.util.CertificateManager;
+import org.apache.doris.common.util.TlsSanDnsGate;
 import org.apache.doris.common.util.X509TlsReloadableKeyManager;
 import org.apache.doris.common.util.X509TlsReloadableTrustManager;
 import org.apache.doris.service.FrontendOptions;
@@ -51,8 +52,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 
 public class ThriftServer {
@@ -110,6 +113,8 @@ public class ThriftServer {
     }
 
     private void createSimpleServer() throws TTransportException {
+        boolean thriftGateEnabled = TlsSanDnsGate.isProtocolEnabled(TlsSanDnsGate.PROTOCOL_THRIFT);
+        validateTlsSanDnsGate(thriftGateEnabled);
         TServerSocket.ServerSocketTransportArgs socketTransportArgs;
 
         if (FrontendOptions.isBindIPV6()) {
@@ -127,10 +132,19 @@ public class ThriftServer {
         TServerSocket serverTransport;
         if (Config.enable_tls && CertificateManager.isProtocolIncluded(CertificateManager.Protocol.thrift)) {
             try {
-                X509TlsReloadableTrustManager trustManager = X509TlsReloadableTrustManager.newBuilder()
-                        .setVerification(
-                                X509TlsReloadableTrustManager.Verification.CERTIFICATE_AND_HOST_NAME_VERIFICATION)
-                        .build();
+                X509TlsReloadableTrustManager.Builder trustManagerBuilder =
+                        X509TlsReloadableTrustManager.newBuilder()
+                                .setVerification(
+                                        X509TlsReloadableTrustManager.Verification
+                                                .CERTIFICATE_AND_HOST_NAME_VERIFICATION);
+                if (thriftGateEnabled) {
+                    trustManagerBuilder.setSslSocketAndEnginePeerVerifier(
+                            TlsSanDnsGate.buildVerifier(TlsSanDnsGate.PROTOCOL_THRIFT));
+                }
+                boolean requirePeerCert = thriftGateEnabled
+                        || Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert");
+                String tlsProtocol = requirePeerCert ? "TLSv1.2" : "TLSv1.3";
+                X509TlsReloadableTrustManager trustManager = trustManagerBuilder.build();
                 trustManagerCloseable = trustManager.updateTrustCredentials(
                         new File(Config.tls_ca_certificate_path),
                         Config.tls_cert_refresh_interval_seconds, TimeUnit.SECONDS,
@@ -152,13 +166,15 @@ public class ThriftServer {
                         })
                 );
 
-                SSLContext sslContext = SSLContext.getInstance("TLSv1.3");
+                SSLContext sslContext = SSLContext.getInstance(tlsProtocol);
                 sslContext.init(new KeyManager[]{ keyManager },
                         new TrustManager[]{ trustManager }, null);
 
                 SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
                 SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
-                if (Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert")) {
+                if (thriftGateEnabled) {
+                    sslServerSocket.setNeedClientAuth(true);
+                } else if (Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert")) {
                     sslServerSocket.setNeedClientAuth(true);
                 } else if (Config.tls_verify_mode.equals("verify_peer")) {
                     // Relax the certificate restrictions for verify_peer
@@ -169,9 +185,16 @@ public class ThriftServer {
                     throw new RuntimeException("The verify mod error(support verify_peer, verify_none"
                             + ", verify_fail_if_no_peer_cert)");
                 }
+                if (requirePeerCert) {
+                    sslServerSocket.setEnabledProtocols(new String[] {"TLSv1.2"});
+                }
+                LOG.info("Thrift TLS settings: port={}, gateEnabled={}, verifyMode={}, peerSanDns={}, "
+                                + "needClientAuth={}, wantClientAuth={}",
+                        port, thriftGateEnabled, Config.tls_verify_mode, Config.tls_peer_cert_required_san_dns,
+                        sslServerSocket.getNeedClientAuth(), sslServerSocket.getWantClientAuth());
 
-                serverTransport = new TServerSocket(new TServerSocket.ServerSocketTransportArgs()
-                    .serverSocket(sslServerSocket));
+                serverTransport = new ImprovedTServerSocket(new TServerSocket.ServerSocketTransportArgs()
+                        .serverSocket(sslServerSocket), requirePeerCert);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init TLS thrift server", e);
             }
@@ -209,6 +232,8 @@ public class ThriftServer {
     }
 
     private void createThreadPoolServer() throws TTransportException {
+        boolean thriftGateEnabled = TlsSanDnsGate.isProtocolEnabled(TlsSanDnsGate.PROTOCOL_THRIFT);
+        validateTlsSanDnsGate(thriftGateEnabled);
         TServerSocket.ServerSocketTransportArgs socketTransportArgs;
 
         if (FrontendOptions.isBindIPV6()) {
@@ -226,10 +251,19 @@ public class ThriftServer {
         TServerSocket serverTransport;
         if (Config.enable_tls && CertificateManager.isProtocolIncluded(CertificateManager.Protocol.thrift)) {
             try {
-                X509TlsReloadableTrustManager trustManager = X509TlsReloadableTrustManager.newBuilder()
-                        .setVerification(
-                                X509TlsReloadableTrustManager.Verification.CERTIFICATE_AND_HOST_NAME_VERIFICATION)
-                        .build();
+                X509TlsReloadableTrustManager.Builder trustManagerBuilder =
+                        X509TlsReloadableTrustManager.newBuilder()
+                                .setVerification(
+                                        X509TlsReloadableTrustManager.Verification
+                                                .CERTIFICATE_AND_HOST_NAME_VERIFICATION);
+                if (thriftGateEnabled) {
+                    trustManagerBuilder.setSslSocketAndEnginePeerVerifier(
+                            TlsSanDnsGate.buildVerifier(TlsSanDnsGate.PROTOCOL_THRIFT));
+                }
+                boolean requirePeerCert = thriftGateEnabled
+                        || Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert");
+                String tlsProtocol = requirePeerCert ? "TLSv1.2" : "TLSv1.3";
+                X509TlsReloadableTrustManager trustManager = trustManagerBuilder.build();
                 trustManagerCloseable = trustManager.updateTrustCredentials(
                         new File(Config.tls_ca_certificate_path),
                         Config.tls_cert_refresh_interval_seconds, TimeUnit.SECONDS,
@@ -251,14 +285,16 @@ public class ThriftServer {
                         })
                 );
 
-                SSLContext sslContext = SSLContext.getInstance("TLSv1.3");
+                SSLContext sslContext = SSLContext.getInstance(tlsProtocol);
                 sslContext.init(new KeyManager[]{ keyManager },
                                 new TrustManager[]{ trustManager },
                                 null);
 
                 SSLServerSocketFactory sslServerSocketFactory = sslContext.getServerSocketFactory();
                 SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
-                if (Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert")) {
+                if (thriftGateEnabled) {
+                    sslServerSocket.setNeedClientAuth(true);
+                } else if (Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert")) {
                     sslServerSocket.setNeedClientAuth(true);
                 } else if (Config.tls_verify_mode.equals("verify_peer")) {
                     // Relax the certificate restrictions for verify_peer
@@ -269,9 +305,16 @@ public class ThriftServer {
                     throw new RuntimeException("The verify mod error(support verify_peer, verify_none"
                             + ", verify_fail_if_no_peer_cert)");
                 }
+                if (requirePeerCert) {
+                    sslServerSocket.setEnabledProtocols(new String[] {"TLSv1.2"});
+                }
+                LOG.info("Thrift TLS settings: port={}, gateEnabled={}, verifyMode={}, peerSanDns={}, "
+                                + "needClientAuth={}, wantClientAuth={}",
+                        port, thriftGateEnabled, Config.tls_verify_mode, Config.tls_peer_cert_required_san_dns,
+                        sslServerSocket.getNeedClientAuth(), sslServerSocket.getWantClientAuth());
 
-                serverTransport = new TServerSocket(new TServerSocket.ServerSocketTransportArgs()
-                        .serverSocket(sslServerSocket));
+                serverTransport = new ImprovedTServerSocket(new TServerSocket.ServerSocketTransportArgs()
+                        .serverSocket(sslServerSocket), requirePeerCert);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init TLS thrift server", e);
             }
@@ -286,6 +329,33 @@ public class ThriftServer {
                 Config.thrift_server_max_worker_threads, "thrift-server-pool", true);
         serverArgs.executorService(threadPoolExecutor);
         server = new TThreadPoolServer(serverArgs);
+    }
+
+    private void validateTlsSanDnsGate(boolean thriftGateEnabled) {
+        if (!thriftGateEnabled) {
+            return;
+        }
+        if (!Config.enable_tls
+                || !CertificateManager.isProtocolIncluded(CertificateManager.Protocol.thrift)) {
+            throw new RuntimeException(
+                    "tls_peer_cert_required_san_dns enables thrift gate, but TLS is disabled/excluded; "
+                            + "please set enable_tls=true and ensure tls_excluded_protocols does not contain "
+                            + "thrift"
+                            + ", enable_tls=" + Config.enable_tls
+                            + ", tls_excluded_protocols=" + Config.tls_excluded_protocols);
+        }
+        if (Config.tls_ca_certificate_path == null || Config.tls_ca_certificate_path.isEmpty()) {
+            throw new RuntimeException(
+                    "tls_peer_cert_required_san_dns enables thrift gate, but tls_ca_certificate_path is empty; "
+                            + "please set tls_ca_certificate_path=/path/to/ca.crt");
+        }
+        if (!Config.tls_verify_mode.equals("verify_fail_if_no_peer_cert")) {
+            throw new RuntimeException(
+                    "tls_peer_cert_required_san_dns configures thrift SAN gate, but tls_verify_mode is not "
+                            + "verify_fail_if_no_peer_cert; please set "
+                            + "tls_verify_mode=verify_fail_if_no_peer_cert"
+                            + ", current_mode=" + Config.tls_verify_mode);
+        }
     }
 
     public void start() throws IOException {
@@ -352,8 +422,16 @@ public class ThriftServer {
     }
 
     static class ImprovedTServerSocket extends TServerSocket {
+        private final boolean requirePeerCertificate;
+
         public ImprovedTServerSocket(ServerSocketTransportArgs args) throws TTransportException {
+            this(args, false);
+        }
+
+        public ImprovedTServerSocket(ServerSocketTransportArgs args, boolean requirePeerCertificate)
+                throws TTransportException {
             super(args);
+            this.requirePeerCertificate = requirePeerCertificate;
         }
 
         public TSocket accept() throws TTransportException {
@@ -372,6 +450,10 @@ public class ThriftServer {
                 throw new TTransportException("Blocking server's accept() may not return NULL");
             }
 
+            if (requirePeerCertificate) {
+                enforcePeerCertificate(result);
+            }
+
             TSocket socket = new TSocket(result);
 
             TConfiguration cfg = socket.getConfiguration();
@@ -382,6 +464,34 @@ public class ThriftServer {
             socket.setTimeout(Config.thrift_client_timeout_ms);
 
             return socket;
+        }
+
+        private void enforcePeerCertificate(Socket socket) throws TTransportException {
+            if (!(socket instanceof SSLSocket)) {
+                return;
+            }
+            SSLSocket sslSocket = (SSLSocket) socket;
+            try {
+                sslSocket.setSoTimeout(Config.thrift_client_timeout_ms);
+                sslSocket.startHandshake();
+                sslSocket.getSession().getPeerCertificates();
+            } catch (SSLPeerUnverifiedException e) {
+                closeQuietly(socket);
+                throw new TTransportException(TTransportException.NOT_OPEN,
+                        "TLS peer certificate required but not provided", e);
+            } catch (IOException e) {
+                closeQuietly(socket);
+                throw new TTransportException(TTransportException.NOT_OPEN,
+                        "Failed to complete TLS handshake", e);
+            }
+        }
+
+        private void closeQuietly(Socket socket) {
+            try {
+                socket.close();
+            } catch (Exception ignored) {
+                LOG.debug("Failed to close socket", ignored);
+            }
         }
     }
 

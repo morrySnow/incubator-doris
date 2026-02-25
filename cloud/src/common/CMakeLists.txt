@@ -13,6 +13,7 @@ set(COMMON_FILES
     metric.cpp
     kms.cpp
     network_util.cpp
+    tls_san_dns_gate.cpp
 )
 
 if (USE_JEMALLOC)

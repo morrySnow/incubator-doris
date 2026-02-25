@@ -611,6 +611,8 @@ DECLARE_String(tls_ca_certificate_path);
 DECLARE_Int32(tls_cert_refresh_interval_seconds);
 // Tls excluded protocols, e.g: brpc,thrift,arrowflight,http
 DECLARE_String(tls_excluded_protocols);
+// Tls peer cert required DNS SAN allowlist
+DECLARE_String(tls_peer_cert_required_san_dns);
 
 // Port to start debug webserver on
 DECLARE_Int32(webserver_port);

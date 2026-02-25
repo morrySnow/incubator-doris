@@ -37,6 +37,13 @@ public:
 
     ~ReloadableSSLSocketFactory() override;
 
+    // Configure peer-certificate verification on the underlying SSL context.
+    // `required=true` means require client certificates
+    // (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT), corresponding to
+    // verify_fail_if_no_peer_cert behavior. SAN DNS gate is only active when
+    // tls_verify_mode=verify_fail_if_no_peer_cert.
+    void authenticate(bool required) override;
+
 private:
     bool reload_ssl_context();
 

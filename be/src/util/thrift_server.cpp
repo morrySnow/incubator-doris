@@ -46,6 +46,7 @@
 #include "common/certificate_manager.h"
 #include "common/config.h"
 #include "common/status.h"
+#include "common/tls_san_dns_gate.h"
 #include "service/backend_options.h"
 #include "util/doris_metrics.h"
 #include "util/reloadable_ssl_socket_factory.h"
@@ -375,6 +376,40 @@ Status ThriftServer::start() {
     // logic in createContext is still accurate.
     apache::thrift::transport::TServerSocket* server_socket = nullptr;
 
+    const bool thrift_gate_configured =
+            TlsSanDnsGate::is_protocol_enabled(TlsSanDnsGate::kProtocolThrift);
+    const bool thrift_gate_enabled =
+            thrift_gate_configured &&
+            config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert;
+    if (thrift_gate_configured) {
+        if (!config::enable_tls ||
+            !CertificateManager::is_protocol_included(CertificateManager::Protocol::thrift)) {
+            std::string msg =
+                    "tls_peer_cert_required_san_dns enables thrift gate, but TLS is "
+                    "disabled/excluded; please set enable_tls=true and ensure "
+                    "tls_excluded_protocols does not contain thrift";
+            LOG(ERROR) << msg << ", enable_tls=" << config::enable_tls
+                       << ", tls_excluded_protocols=" << config::tls_excluded_protocols;
+            return Status::InternalError(msg);
+        }
+        if (config::tls_ca_certificate_path.empty()) {
+            std::string msg =
+                    "tls_peer_cert_required_san_dns enables thrift gate, but "
+                    "tls_ca_certificate_path is empty; please set "
+                    "tls_ca_certificate_path=/path/to/ca.crt";
+            LOG(ERROR) << msg;
+            return Status::InternalError(msg);
+        }
+        if (!thrift_gate_enabled) {
+            std::string msg =
+                    "tls_peer_cert_required_san_dns configures thrift SAN gate, but "
+                    "tls_verify_mode is not verify_fail_if_no_peer_cert; please set "
+                    "tls_verify_mode=verify_fail_if_no_peer_cert";
+            LOG(ERROR) << msg << ", current_mode=" << config::tls_verify_mode;
+            return Status::InternalError(msg);
+        }
+    }
+
     if (config::enable_tls &&
         CertificateManager::is_protocol_included(CertificateManager::Protocol::thrift)) {
         _reloadable_ssl_factory = std::make_shared<ReloadableSSLSocketFactory>(
@@ -391,7 +426,9 @@ Status ThriftServer::start() {
             _reloadable_ssl_factory->loadPrivateKey(config::tls_private_key_path.c_str());
         }
         _reloadable_ssl_factory->loadTrustedCertificates(config::tls_ca_certificate_path.c_str());
-        if (config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert) {
+        if (thrift_gate_enabled) {
+            _reloadable_ssl_factory->authenticate(true);
+        } else if (config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert) {
             _reloadable_ssl_factory->authenticate(true);
         } else if (config::tls_verify_mode == CertificateManager::verify_peer) {
             // Relax the certificate restrictions for verify_peer

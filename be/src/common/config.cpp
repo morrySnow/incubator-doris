@@ -565,6 +565,10 @@ DEFINE_String(tls_ca_certificate_path, "");
 DEFINE_Int32(tls_cert_refresh_interval_seconds, "3600");
 // Tls excluded protocols, e.g: brpc,thrift,arrowflight,http
 DEFINE_String(tls_excluded_protocols, "");
+// Tls peer cert required DNS SAN allowlist
+// Effective only when tls_verify_mode=verify_fail_if_no_peer_cert.
+// e.g.: tls_peer_cert_required_san_dns=brpc=internal.com,internal2.com;thrift=internal.com
+DEFINE_String(tls_peer_cert_required_san_dns, "");
 
 // Port to start debug webserver on
 DEFINE_Int32(webserver_port, "8040");

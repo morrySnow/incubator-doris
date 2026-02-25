@@ -29,9 +29,41 @@
 
 #include "common/certificate_manager.h"
 #include "common/config.h"
+#include "common/tls_san_dns_gate.h"
 #include "util/ssl_key_logger.h"
 
 namespace doris {
+
+namespace {
+
+int tls_san_dns_verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
+    if (preverify_ok == 0) {
+        return 0;
+    }
+
+    if (X509_STORE_CTX_get_error_depth(ctx) != 0) {
+        return 1;
+    }
+
+    const auto* allowlist = TlsSanDnsGate::get_allowed_dns(TlsSanDnsGate::kProtocolThrift);
+    if (allowlist == nullptr) {
+        return 1;
+    }
+
+    X509* cert = X509_STORE_CTX_get_current_cert(ctx);
+    auto dns_sans = TlsSanDnsGate::extract_dns_sans(cert);
+    if (!TlsSanDnsGate::matches_allowlist(*allowlist, dns_sans)) {
+        LOG(WARNING) << "TLS SAN DNS gate reject peer certificate."
+                     << " protocol=" << TlsSanDnsGate::kProtocolThrift
+                     << " allowlist=" << TlsSanDnsGate::format_allowlist(*allowlist)
+                     << " peer_dns=" << TlsSanDnsGate::format_dns_sans(dns_sans);
+        return 0;
+    }
+
+    return 1;
+}
+
+} // namespace
 
 ReloadableSSLSocketFactory::ReloadableSSLSocketFactory(
         apache::thrift::transport::SSLProtocol protocol)
@@ -43,6 +75,25 @@ ReloadableSSLSocketFactory::ReloadableSSLSocketFactory(
 
 ReloadableSSLSocketFactory::~ReloadableSSLSocketFactory() {
     stop_cert_monitoring();
+}
+
+void ReloadableSSLSocketFactory::authenticate(bool required) {
+    apache::thrift::transport::TSSLSocketFactory::authenticate(required);
+
+    SSL_CTX* ctx = ctx_ ? ctx_->get() : nullptr;
+    if (ctx == nullptr) {
+        return;
+    }
+
+    const bool thrift_gate_enabled =
+            TlsSanDnsGate::is_protocol_enabled(TlsSanDnsGate::kProtocolThrift) &&
+            config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert;
+    if (thrift_gate_enabled) {
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                           tls_san_dns_verify_callback);
+    } else if (required) {
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+    }
 }
 
 bool ReloadableSSLSocketFactory::reload_ssl_context() {
@@ -100,7 +151,13 @@ bool ReloadableSSLSocketFactory::create_and_swap_ssl_context() {
     }
 
     // Set verification mode
-    if (config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert) {
+    const bool thrift_gate_enabled =
+            TlsSanDnsGate::is_protocol_enabled(TlsSanDnsGate::kProtocolThrift) &&
+            config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert;
+    if (thrift_gate_enabled) {
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                           tls_san_dns_verify_callback);
+    } else if (config::tls_verify_mode == CertificateManager::verify_fail_if_no_peer_cert) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
     } else if (config::tls_verify_mode == CertificateManager::verify_peer) {
         // Relax the certificate restrictions for verify_peer

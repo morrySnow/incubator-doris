@@ -35,6 +35,7 @@
 #include "common/network_util.h"
 #include "common/stats.h"
 #include "common/string_util.h"
+#include "common/tls_san_dns_gate.h"
 #include "common/util.h"
 #include "cpp/sync_point.h"
 #include "meta-service/meta_service.h"
@@ -4170,12 +4171,17 @@ void notify_refresh_instance(std::shared_ptr<TxnKv> txn_kv, const std::string& i
 
     static std::unordered_map<std::string, std::shared_ptr<MetaService_Stub>> stubs;
     static std::mutex mtx;
+    const bool brpc_gate_enabled =
+            TlsSanDnsGate::is_protocol_enabled(TlsSanDnsGate::kProtocolBrpc) &&
+            config::tls_verify_mode == "verify_fail_if_no_peer_cert";
     if (config::enable_tls && is_protocol_included(TlsProtocol::brpc)) {
         options.mutable_ssl_options()->client_cert.certificate = config::tls_certificate_path;
         options.mutable_ssl_options()->client_cert.private_key = config::tls_private_key_path;
         options.mutable_ssl_options()->client_cert.private_key_passwd =
                 config::tls_private_key_password;
-        if (config::tls_verify_mode == "verify_fail_if_no_peer_cert") {
+        if (brpc_gate_enabled) {
+            options.mutable_ssl_options()->verify.verify_depth = 2;
+        } else if (config::tls_verify_mode == "verify_fail_if_no_peer_cert") {
             options.mutable_ssl_options()->verify.verify_depth = 2;
         } else if (config::tls_verify_mode == "verify_peer") {
             // nothing
@@ -4188,6 +4194,9 @@ void notify_refresh_instance(std::shared_ptr<TxnKv> txn_kv, const std::string& i
                     config::tls_verify_mode);
         }
         options.mutable_ssl_options()->verify.ca_file_path = config::tls_ca_certificate_path;
+        options.mutable_ssl_options()->verify.verify_callback = tls_san_dns_verify_callback;
+        options.mutable_ssl_options()->verify.verify_userdata =
+                const_cast<char*>(TlsSanDnsGate::kProtocolBrpc);
     }
     std::vector<bthread_t> btids;
     btids.reserve(reg.items_size());

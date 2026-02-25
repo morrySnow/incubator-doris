@@ -65,6 +65,8 @@ add_executable(util_test util_test.cpp)
 
 add_executable(network_util_test network_util_test.cpp)
 
+add_executable(tls_san_dns_gate_test tls_san_dns_gate_test.cpp)
+
 add_executable(txn_lazy_commit_test txn_lazy_commit_test.cpp)
 
 
@@ -111,6 +113,8 @@ target_link_libraries(stopwatch_test ${TEST_LINK_LIBS})
 target_link_libraries(util_test ${TEST_LINK_LIBS})
 
 target_link_libraries(network_util_test ${TEST_LINK_LIBS})
+
+target_link_libraries(tls_san_dns_gate_test ${TEST_LINK_LIBS})
 
 target_link_libraries(txn_lazy_commit_test ${TEST_LINK_LIBS})
 
@@ -162,4 +166,3 @@ install(FILES
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${BUILD_DIR}/test)
-

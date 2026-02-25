@@ -273,6 +273,9 @@ CONF_Int32(tls_cert_refresh_interval_seconds, "3600");
 CONF_String(tls_fdb_verify_peers, "Check.Valid=1");
 // Tls excluded protocols, e.g: brpc
 CONF_String(tls_excluded_protocols, "");
+// Tls peer cert required DNS SAN allowlist
+// Effective only when tls_verify_mode=verify_fail_if_no_peer_cert.
+CONF_String(tls_peer_cert_required_san_dns, "");
 
 CONF_Bool(enable_cluster_name_check, "false");
 

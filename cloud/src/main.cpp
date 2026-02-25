@@ -38,6 +38,7 @@
 #include "common/encryption_util.h"
 #include "common/logging.h"
 #include "common/network_util.h"
+#include "common/tls_san_dns_gate.h"
 #include "common/util.h"
 #include "meta-service/meta_server.h"
 #include "meta-store/mem_txn_kv.h"
@@ -328,6 +329,34 @@ int main(int argc, char** argv) {
 
     // start service
     brpc::ServerOptions options;
+    const bool brpc_gate_configured =
+            TlsSanDnsGate::is_protocol_enabled(TlsSanDnsGate::kProtocolBrpc);
+    const bool brpc_gate_enabled =
+            brpc_gate_configured && config::tls_verify_mode == "verify_fail_if_no_peer_cert";
+    if (brpc_gate_configured) {
+        if (!config::enable_tls || !is_protocol_included(TlsProtocol::brpc)) {
+            LOG(ERROR) << "tls_peer_cert_required_san_dns enables brpc gate, but TLS is "
+                       << "disabled/excluded; please set enable_tls=true and ensure "
+                       << "tls_excluded_protocols does not contain brpc"
+                       << ", enable_tls=" << config::enable_tls
+                       << ", tls_excluded_protocols=" << config::tls_excluded_protocols;
+            return -1;
+        }
+        if (config::tls_ca_certificate_path.empty()) {
+            LOG(ERROR) << "tls_peer_cert_required_san_dns enables brpc gate, but "
+                       << "tls_ca_certificate_path is empty; please set "
+                       << "tls_ca_certificate_path=/path/to/ca.crt";
+            return -1;
+        }
+        if (!brpc_gate_enabled) {
+            LOG(ERROR) << "tls_peer_cert_required_san_dns configures brpc SAN gate, but "
+                       << "tls_verify_mode is not verify_fail_if_no_peer_cert; please set "
+                       << "tls_verify_mode=verify_fail_if_no_peer_cert, current_mode="
+                       << config::tls_verify_mode;
+            return -1;
+        }
+    }
+
     if (config::enable_tls && is_protocol_included(TlsProtocol::brpc)) {
         options.mutable_ssl_options()->default_cert.certificate = config::tls_certificate_path;
         options.mutable_ssl_options()->default_cert.private_key = config::tls_private_key_path;
@@ -336,7 +365,9 @@ int main(int argc, char** argv) {
         options.mutable_ssl_options()->enable_certificate_reload = true;
         options.mutable_ssl_options()->certificate_reload_interval_s =
                 config::tls_cert_refresh_interval_seconds;
-        if (config::tls_verify_mode == "verify_fail_if_no_peer_cert") {
+        if (brpc_gate_enabled) {
+            options.mutable_ssl_options()->verify.verify_depth = 2;
+        } else if (config::tls_verify_mode == "verify_fail_if_no_peer_cert") {
             options.mutable_ssl_options()->verify.verify_depth = 1;
         } else if (config::tls_verify_mode == "verify_peer") {
             // Relax the certificate restrictions for verify_peer
@@ -351,6 +382,9 @@ int main(int argc, char** argv) {
             return -1;
         }
         options.mutable_ssl_options()->verify.ca_file_path = config::tls_ca_certificate_path;
+        options.mutable_ssl_options()->verify.verify_callback = tls_san_dns_verify_callback;
+        options.mutable_ssl_options()->verify.verify_userdata =
+                const_cast<char*>(TlsSanDnsGate::kProtocolBrpc);
         options.mutable_ssl_options()->alpns = "h2";
         options.force_ssl = true;
     }

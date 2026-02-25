@@ -389,6 +389,13 @@ public class Config extends ConfigBase {
             "Protocols excluded from TLS, comma separated, e.g., thrift,mysql,http,brpc,arrowflight,bdbje"})
     public static String tls_excluded_protocols = "";
 
+    @ConfField(mutable = false, description = {
+            "基于证书DNS SAN的准入控制，协议段用分号分隔；仅当 tls_verify_mode="
+                    + "verify_fail_if_no_peer_cert 时生效",
+            "Peer certificate DNS SAN allowlist per protocol, separated by ';'. "
+                    + "Effective only when tls_verify_mode is verify_fail_if_no_peer_cert."})
+    public static String tls_peer_cert_required_san_dns = "";
+
     @ConfField(mutable = true, description = {
             "当用户配置了 TLS 证书要求（如 REQUIRE SAN）且证书验证通过时，是否跳过密码验证直接登录。"
                     + "为 true 时，证书验证通过即可免密登录；为 false 时，需同时验证证书和密码。",
