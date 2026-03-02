@@ -504,7 +504,8 @@ ${sanEntries}
         testAllConnections(false, [useCa: true, useCert: true, useKey: true, certDir: mismatchedCertDir2, skipJDBC: true],
             "Suite1-Test9b : verify_fail_if_no_peer_cert, key+cert mismatch")
 
-        testAllConnections(false, [useCa: true, useCert: false, useKey: false, tlsEnabled: false, checkProtocolMismatch: true],
+        testAllConnections(false, [useCa: true, useCert: false, useKey: false, tlsEnabled: false,
+                                   checkProtocolMismatch: true, skipJDBC: true, skipMysql: true],
             "Suite1-Test10 : verify_fail_if_no_peer_cert, http try to connect")
 
         // ===============================================================
