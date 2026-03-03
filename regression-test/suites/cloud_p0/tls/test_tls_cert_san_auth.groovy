@@ -24,16 +24,16 @@ suite('test_tls_cert_san_auth', 'docker, p0') {
     // Test cases:
     //   MySQL Protocol Tests 1-6 (+ security regression): REQUIRE SAN various scenarios
     //   HTTPS Tests 1-7: FE HTTP endpoint certificate-based auth
-    //   Strict SAN matching tests: subset/superset/case mismatch
+    //   SAN containment matching tests: subset/superset/case mismatch
     //
     // The test certificates (client_san.crt) contain these SANs:
     //   - Email: test@example.com
     //   - DNS: testclient.example.com
     //   - URI: spiffe://example.com/testclient
     //
-    // SAN matching is EXACT STRING MATCH - the full SAN string from the certificate
-    // must exactly match the REQUIRE SAN value (including order, prefixes, and separators).
-    // Format: "email:xxx, DNS:xxx, URI:xxx, IP Address:xxx" (comma + space separated)
+    // SAN matching is ENTRY-LEVEL CONTAINMENT - each REQUIRED SAN entry must exist
+    // in the certificate SAN extension (case-sensitive exact entry match).
+    // Format: "email:xxx, DNS:xxx, URI:xxx, IP Address:xxx" (comma-separated entries)
 
     def testName = "test_tls_cert_san_auth"
 
@@ -704,7 +704,7 @@ ${ipSanEntries}
                 def httpEndpoint = "/api/bootstrap"
 
                 def buildCurlWithCert = { String user, String password, String endpoint ->
-                    return "curl -s -k " +
+                    return "curl -s -k --noproxy '*' " +
                            "--resolve '${sniHostname}:${httpPort}:${feHostIp}' " +
                            "-u '${user}:${password}' " +
                            "--cert ${sanClientCert} --key ${sanClientKey} " +
@@ -713,7 +713,7 @@ ${ipSanEntries}
 
                 // Helper: Build curl command without client certificate
                 def buildCurlNoCert = { String user, String password, String endpoint ->
-                    return "curl -s -k " +
+                    return "curl -s -k --noproxy '*' " +
                            "--resolve '${sniHostname}:${httpPort}:${feHostIp}' " +
                            "-u '${user}:${password}' " +
                            "https://${sniHostname}:${httpPort}${endpoint} 2>&1"
@@ -721,7 +721,7 @@ ${ipSanEntries}
 
                 // Helper: Build curl command with no-SAN certificate
                 def buildCurlWithNoSanCert = { String user, String password, String endpoint ->
-                    return "curl -s -k " +
+                    return "curl -s -k --noproxy '*' " +
                            "--resolve '${sniHostname}:${httpPort}:${feHostIp}' " +
                            "-u '${user}:${password}' " +
                            "--cert ${noSanClientCert} --key ${noSanClientKey} " +
@@ -730,7 +730,7 @@ ${ipSanEntries}
 
                 // Helper: Build curl command with custom certificate
                 def buildCurlWithCustomCert = { String user, String password, String cert, String key, String endpoint ->
-                    return "curl -s -k " +
+                    return "curl -s -k --noproxy '*' " +
                            "--resolve '${sniHostname}:${httpPort}:${feHostIp}' " +
                            "-u '${user}:${password}' " +
                            "--cert ${cert} --key ${key} " +
@@ -884,7 +884,7 @@ ${ipSanEntries}
                     def cycleUser = "${testUserBase}_cycle"
                     def cycleUserIdentity = "'${cycleUser}'@'%'"
                     def createSans = [null, sanFull, sanMismatch, sanSubset, sanFull]
-                    def wrongSans = [sanMismatch, sanSubset, sanMismatch, sanSubset, sanMismatch]
+                    def requireSansToTest = [sanMismatch, sanSubset, sanMismatch, sanSubset, sanMismatch]
                     def findAuthRowByIdentity = { String userIdentity ->
                         def authRows = sql_return_maparray "show proc '/auth/'"
                         return authRows.find { it.UserIdentity == userIdentity }
@@ -910,15 +910,18 @@ ${ipSanEntries}
                         assertTrue(executeMySQLCommand(cmdOk, true),
                                 "SAN cycle ${idx} should succeed with matching SAN")
  
-                        def wrongSan = wrongSans[idx - 1]
-                        sql "ALTER USER '${cycleUser}'@'%' REQUIRE SAN '${wrongSan}'"
+                        def requireSanToTest = requireSansToTest[idx - 1]
+                        sql "ALTER USER '${cycleUser}'@'%' REQUIRE SAN '${requireSanToTest}'"
                         def authRowWrong = findAuthRowByIdentity(cycleUserIdentity)
                         assertTrue(authRowWrong != null, "Should find user ${cycleUser} after wrong REQUIRE SAN")
-                        assertTrue(authRowWrong.RequireSan == wrongSan, "RequireSan should be ${wrongSan}")
- 
+                        assertTrue(authRowWrong.RequireSan == requireSanToTest, "RequireSan should be ${requireSanToTest}")
+
                         def cmdWrong = buildMySQLCmdWithCert(cycleUser, testPassword, "SELECT 1")
-                        assertTrue(executeMySQLCommand(cmdWrong, false),
-                                "SAN cycle ${idx} should fail with mismatched SAN")
+                        def shouldSucceedWithRequireSan = (requireSanToTest == sanSubset)
+                        assertTrue(executeMySQLCommand(cmdWrong, shouldSucceedWithRequireSan),
+                                shouldSucceedWithRequireSan
+                                        ? "SAN cycle ${idx} should succeed when REQUIRE SAN is certificate subset"
+                                        : "SAN cycle ${idx} should fail with mismatched SAN")
  
                         sql "ALTER USER '${cycleUser}'@'%' REQUIRE NONE"
                         def authRowNone = findAuthRowByIdentity(cycleUserIdentity)
@@ -1031,9 +1034,9 @@ ${ipSanEntries}
                     }
 
                     // ==================================================================================
-                    // SAN strict matching tests (MySQL + HTTPS)
+                    // SAN containment matching tests (MySQL + HTTPS)
                     // ==================================================================================
-                    logger.info("=== SAN strict matching tests ===")
+                    logger.info("=== SAN containment matching tests ===")
                     sql "CREATE USER '${testUserBase}_strict_1'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanFull}'"
                     def strictCmd1 = buildMySQLCmdWithCustomCert(
                             "${testUserBase}_strict_1",
@@ -1047,8 +1050,8 @@ ${ipSanEntries}
 
                     sql "CREATE USER '${testUserBase}_strict_2'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanSubset}'"
                     def strictCmd2 = buildMySQLCmdWithCert("${testUserBase}_strict_2", testPassword, "SELECT 1")
-                    assertTrue(executeMySQLCommand(strictCmd2, false),
-                            "Strict Test 2 should fail: REQUIRE SAN subset, cert full")
+                    assertTrue(executeMySQLCommand(strictCmd2, true),
+                            "Containment Test 2 should succeed: REQUIRE SAN subset, cert full")
 
                     sql "CREATE USER '${testUserBase}_strict_3'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanFull}'"
                     def strictCmd3 = buildMySQLCmdWithCustomCert(
@@ -1076,8 +1079,8 @@ ${ipSanEntries}
                     sql "CREATE USER '${testUserBase}_http_strict_2'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanSubset}'"
                     sql "GRANT ADMIN_PRIV ON *.*.* TO '${testUserBase}_http_strict_2'@'%'"
                     def httpStrict2 = buildCurlWithCert("${testUserBase}_http_strict_2", testPassword, httpEndpoint)
-                    assertTrue(executeCurlCommand(httpStrict2, false),
-                            "HTTP Strict Test 2 should fail: REQUIRE SAN subset, cert full")
+                    assertTrue(executeCurlCommand(httpStrict2, true),
+                            "HTTP Containment Test 2 should succeed: REQUIRE SAN subset, cert full")
 
                     sql "CREATE USER '${testUserBase}_http_strict_3'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanFull}'"
                     sql "GRANT ADMIN_PRIV ON *.*.* TO '${testUserBase}_http_strict_3'@'%'"

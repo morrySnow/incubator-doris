@@ -193,7 +193,7 @@ public class CertificateBasedAuthVerifierTest {
     }
 
     @Test
-    public void testVerifyWithPartialSanMismatch(@Mocked X509Certificate mockCert) throws Exception {
+    public void testVerifyWithPartialSanMatch(@Mocked X509Certificate mockCert) throws Exception {
         UserIdentity userIdentity = new UserIdentity("testuser", "%");
         userIdentity.setIsAnalyzed();
         // User requires only one SAN but certificate has multiple
@@ -219,9 +219,70 @@ public class CertificateBasedAuthVerifierTest {
             }
         };
 
-        // Should fail because it's exact match - cert has more SANs than required
+        // Should pass because required SAN entry is contained in certificate SAN entries
+        VerificationResult result = verifier.verify(userIdentity, mockCert);
+        Assert.assertTrue(result.isSuccess());
+    }
+
+    @Test
+    public void testVerifyWithPartialSanMissingEntry(@Mocked X509Certificate mockCert) throws Exception {
+        UserIdentity userIdentity = new UserIdentity("testuser", "%");
+        userIdentity.setIsAnalyzed();
+        // User requires two SAN entries, but cert only has one of them
+        userIdentity.setSan("email:test@example.com, DNS:testclient.example.com");
+
+        Collection<List<?>> sans = new ArrayList<>();
+
+        List<Object> emailSan = new ArrayList<>();
+        emailSan.add(Integer.valueOf(1));
+        emailSan.add("test@example.com");
+        sans.add(emailSan);
+
+        new Expectations() {
+            {
+                mockCert.getSubjectAlternativeNames();
+                result = sans;
+            }
+        };
+
         VerificationResult result = verifier.verify(userIdentity, mockCert);
         Assert.assertFalse(result.isSuccess());
+        Assert.assertTrue(result.getErrorMessage().contains("missing entries"));
+    }
+
+    @Test
+    public void testVerifyWithMultipleSansDifferentOrder(@Mocked X509Certificate mockCert) throws Exception {
+        UserIdentity userIdentity = new UserIdentity("testuser", "%");
+        userIdentity.setIsAnalyzed();
+        // Required SAN order is different from certificate SAN order
+        userIdentity.setSan("URI:spiffe://example.com/testclient, email:test@example.com");
+
+        Collection<List<?>> sans = new ArrayList<>();
+
+        List<Object> emailSan = new ArrayList<>();
+        emailSan.add(Integer.valueOf(1));
+        emailSan.add("test@example.com");
+        sans.add(emailSan);
+
+        List<Object> dnsSan = new ArrayList<>();
+        dnsSan.add(Integer.valueOf(2));
+        dnsSan.add("testclient.example.com");
+        sans.add(dnsSan);
+
+        List<Object> uriSan = new ArrayList<>();
+        uriSan.add(Integer.valueOf(6));
+        uriSan.add("spiffe://example.com/testclient");
+        sans.add(uriSan);
+
+        new Expectations() {
+            {
+                mockCert.getSubjectAlternativeNames();
+                result = sans;
+            }
+        };
+
+        VerificationResult result = verifier.verify(userIdentity, mockCert);
+        Assert.assertTrue(result.isSuccess());
     }
 
     @Test
@@ -316,5 +377,63 @@ public class CertificateBasedAuthVerifierTest {
         // Should fail because 'dns:' != 'DNS:'
         VerificationResult result = verifier.verify(userIdentity, mockCert);
         Assert.assertFalse(result.isSuccess());
+    }
+
+    @Test
+    public void testVerifyWithExtractedCertInfoSubsetPasses() {
+        UserIdentity userIdentity = new UserIdentity("testuser", "%");
+        userIdentity.setIsAnalyzed();
+        userIdentity.setSan("DNS:testclient.example.com");
+
+        VerificationResult result = verifier.verifyWithExtractedCertInfo(
+                userIdentity,
+                "email:test@example.com, DNS:testclient.example.com, URI:spiffe://example.com/testclient",
+                null,
+                null,
+                null);
+
+        Assert.assertTrue(result.isSuccess());
+    }
+
+    @Test
+    public void testVerifyWithExtractedCertInfoMissingEntryFails() {
+        UserIdentity userIdentity = new UserIdentity("testuser", "%");
+        userIdentity.setIsAnalyzed();
+        userIdentity.setSan("DNS:testclient.example.com, URI:spiffe://example.com/testclient");
+
+        VerificationResult result = verifier.verifyWithExtractedCertInfo(
+                userIdentity,
+                "DNS:testclient.example.com",
+                null,
+                null,
+                null);
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertTrue(result.getErrorMessage().contains("missing entries"));
+    }
+
+    @Test
+    public void testVerifyWithExtractedCertInfoEmptyOrInvalidSanFails() {
+        UserIdentity userIdentity = new UserIdentity("testuser", "%");
+        userIdentity.setIsAnalyzed();
+        userIdentity.setSan("DNS:testclient.example.com");
+
+        VerificationResult emptyResult = verifier.verifyWithExtractedCertInfo(
+                userIdentity,
+                "",
+                null,
+                null,
+                null);
+        Assert.assertFalse(emptyResult.isSuccess());
+        Assert.assertTrue(emptyResult.getErrorMessage().contains("has no Subject Alternative Names"));
+
+        VerificationResult invalidResult = verifier.verifyWithExtractedCertInfo(
+                userIdentity,
+                " , , ",
+                null,
+                null,
+                null);
+        Assert.assertFalse(invalidResult.isSuccess());
+        Assert.assertTrue(invalidResult.getErrorMessage().contains("has no valid Subject Alternative Names"));
     }
 }

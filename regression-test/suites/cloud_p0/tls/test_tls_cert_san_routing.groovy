@@ -362,7 +362,7 @@ URI.1 = spiffe://example.com/testclient
                 def followRedirect = params.followRedirect ?: false
                 def redirectOpt = followRedirect ? "--location-trusted --max-redirs 3" : ""
 
-                def cmd = """curl -s -k --cacert ${sanClientCa} \\
+                def cmd = """curl -s -k --noproxy '*' --cacert ${sanClientCa} \\
                     --cert ${sanClientCert} --key ${sanClientKey} \\
                     ${resolveOpt} \\
                     ${redirectOpt} \\

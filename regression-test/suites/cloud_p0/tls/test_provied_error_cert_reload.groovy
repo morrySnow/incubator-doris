@@ -287,7 +287,7 @@ ${sanEntries}
             // Check FE nodes via HTTPS with certificates
             frontends.each { fe ->
                 def url = "https://${fe.host}:${fe.httpPort}/metrics"
-                def curlCmd = "curl --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
+                def curlCmd = "curl --noproxy '*' --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
                 def result = curlCmd.execute()
                 result.waitFor()
                 def httpCode = result.text.trim()
@@ -303,7 +303,7 @@ ${sanEntries}
             // Check BE nodes via HTTPS with certificates
             backends.each { be ->
                 def url = "https://${be.host}:${be.httpPort}/metrics"
-                def curlCmd = "curl --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
+                def curlCmd = "curl --noproxy '*' --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
                 def result = curlCmd.execute()
                 result.waitFor()
                 def httpCode = result.text.trim()
@@ -319,7 +319,7 @@ ${sanEntries}
             // Check MS nodes via HTTPS with certificates
             metaservices.each { ms ->
                 def url = "https://${ms.host}:${ms.httpPort}"
-                def curlCmd = "curl --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
+                def curlCmd = "curl --noproxy '*' --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
                 def result = curlCmd.execute()
                 result.waitFor()
                 def httpCode = result.text.trim()
@@ -335,7 +335,7 @@ ${sanEntries}
             // Check Recycler nodes via HTTPS with certificates
             recyclers.each { rc ->
                 def url = "https://${rc.host}:${rc.httpPort}"
-                def curlCmd = "curl --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
+                def curlCmd = "curl --noproxy '*' --cacert ${certDir}/ca.crt --cert ${certDir}/certificate.crt --key ${certDir}/certificate.key -s -o /dev/null -w '%{http_code}' --connect-timeout 5 ${url}"
                 def result = curlCmd.execute()
                 result.waitFor()
                 def httpCode = result.text.trim()

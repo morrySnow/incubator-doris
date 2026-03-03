@@ -20,7 +20,10 @@ package org.apache.doris.analysis;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.Pair;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * TLS certificate requirement options for CREATE/ALTER USER.
@@ -30,7 +33,7 @@ import java.util.List;
  * <ul>
  *   <li>Only REQUIRE NONE and REQUIRE SAN 'xxx' are fully supported</li>
  *   <li>Multi-option combinations (SAN AND CIPHER AND ...) are parsed but rejected in analyze()</li>
- *   <li>SAN matching is simple string comparison</li>
+ *   <li>SAN matching uses entry-level containment (all required entries must exist in certificate SAN)</li>
  * </ul>
  *
  * <p>Semantics:
@@ -41,6 +44,9 @@ import java.util.List;
  * </ul>
  */
 public class TlsOptions {
+    private static final Set<String> SUPPORTED_SAN_TYPES = new HashSet<>(Arrays.asList(
+            "EMAIL", "DNS", "URI", "IP ADDRESS", "IP"
+    ));
 
     private boolean hasRequireClause;
     private boolean requireNone;
@@ -179,6 +185,44 @@ public class TlsOptions {
             if (!trimmedSan.contains(":")) {
                 throw new AnalysisException("SAN value must contain ':'");
             }
+            validateSanEntries(trimmedSan);
+        }
+    }
+
+    private static void validateSanEntries(String sanValue) throws AnalysisException {
+        String[] entries = sanValue.split(",", -1);
+        boolean hasValidEntry = false;
+        for (String rawEntry : entries) {
+            String entry = rawEntry == null ? "" : rawEntry.trim();
+            if (entry.isEmpty()) {
+                throw new AnalysisException("SAN value contains empty entry");
+            }
+
+            int colonIdx = entry.indexOf(':');
+            if (colonIdx <= 0 || colonIdx == entry.length() - 1) {
+                throw new AnalysisException(String.format(
+                        "Invalid SAN entry format '%s', expected '<type>:<value>'",
+                        entry));
+            }
+
+            String type = entry.substring(0, colonIdx).trim();
+            String value = entry.substring(colonIdx + 1).trim();
+            if (type.isEmpty() || value.isEmpty()) {
+                throw new AnalysisException(String.format(
+                        "Invalid SAN entry format '%s', expected '<type>:<value>'",
+                        entry));
+            }
+
+            if (!SUPPORTED_SAN_TYPES.contains(type.toUpperCase())) {
+                throw new AnalysisException(String.format(
+                        "Unsupported SAN entry type '%s' in '%s'. Supported types are: email, DNS, URI, IP Address",
+                        type, entry));
+            }
+            hasValidEntry = true;
+        }
+
+        if (!hasValidEntry) {
+            throw new AnalysisException("SAN value cannot be empty");
         }
     }
 

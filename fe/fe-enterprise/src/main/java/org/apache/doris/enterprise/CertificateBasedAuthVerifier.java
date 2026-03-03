@@ -25,11 +25,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Enterprise implementation of CertificateAuthVerifier.
  * Provides actual TLS certificate verification against user's requirements.
- * Currently supports SAN (Subject Alternative Name) exact matching.
+ * Currently supports SAN (Subject Alternative Name) entry-level containment matching.
  */
 public class CertificateBasedAuthVerifier implements CertificateAuthVerifier {
     private static final Logger LOG = LogManager.getLogger(CertificateBasedAuthVerifier.class);
@@ -148,17 +152,25 @@ public class CertificateBasedAuthVerifier implements CertificateAuthVerifier {
     }
 
     /**
-     * Verifies that the certificate's SAN string exactly matches the required SAN.
-     * This is a full string comparison - the entire SAN extension content must match.
+     * Verifies that the certificate's SAN contains all required SAN entries.
      */
     private VerificationResult verifySan(UserIdentity userIdentity, X509Certificate clientCert, String requiredSan) {
+        Set<String> certSanEntries = TlsCertificateUtils.extractSubjectAlternativeNameEntries(clientCert);
         String certSanString = TlsCertificateUtils.extractSubjectAlternativeNames(clientCert);
-        return verifySanString(userIdentity, certSanString, requiredSan);
+        if (certSanEntries.isEmpty()) {
+            String errorMsg = String.format(
+                    "User %s requires SAN '%s' but the client certificate has no Subject Alternative Names",
+                    userIdentity, requiredSan);
+            LOG.warn(errorMsg);
+            return VerificationResult.failure(errorMsg);
+        }
+        return verifyRequiredSanEntries(userIdentity, certSanEntries, certSanString, requiredSan);
     }
 
     /**
-     * Verifies that the provided SAN string exactly matches the required SAN.
-     * This is a full string comparison - the entire SAN string must match.
+     * Verifies that the provided SAN string contains all required SAN entries.
+     * Both required SAN and certificate SAN are parsed as comma-separated entries,
+     * then matched by exact entry equality.
      *
      * @param userIdentity The user identity (for error messages).
      * @param certSanString The SAN string from the certificate.
@@ -174,11 +186,41 @@ public class CertificateBasedAuthVerifier implements CertificateAuthVerifier {
             return VerificationResult.failure(errorMsg);
         }
 
-        // Exact string match
-        if (!certSanString.equals(requiredSan)) {
+        Set<String> certSanEntries = parseSanEntries(certSanString);
+        if (certSanEntries.isEmpty()) {
             String errorMsg = String.format(
-                    "User %s requires SAN '%s' but certificate SAN is '%s'",
-                    userIdentity, requiredSan, certSanString);
+                    "User %s requires SAN '%s' but the client certificate has no valid Subject Alternative Names",
+                    userIdentity, requiredSan);
+            LOG.warn(errorMsg);
+            return VerificationResult.failure(errorMsg);
+        }
+
+        return verifyRequiredSanEntries(userIdentity, certSanEntries, certSanString, requiredSan);
+    }
+
+    private VerificationResult verifyRequiredSanEntries(UserIdentity userIdentity, Set<String> certSanEntries,
+            String certSanString, String requiredSan) {
+
+        Set<String> requiredSanEntries = parseSanEntries(requiredSan);
+        if (requiredSanEntries.isEmpty()) {
+            String errorMsg = String.format(
+                    "User %s has invalid required SAN format '%s'",
+                    userIdentity, requiredSan);
+            LOG.warn(errorMsg);
+            return VerificationResult.failure(errorMsg);
+        }
+
+        List<String> missingEntries = new ArrayList<>();
+        for (String requiredEntry : requiredSanEntries) {
+            if (!certSanEntries.contains(requiredEntry)) {
+                missingEntries.add(requiredEntry);
+            }
+        }
+
+        if (!missingEntries.isEmpty()) {
+            String errorMsg = String.format(
+                    "User %s requires SAN '%s' but certificate SAN is '%s' (missing entries: %s)",
+                    userIdentity, requiredSan, certSanString, String.join(", ", missingEntries));
             LOG.warn(errorMsg);
             return VerificationResult.failure(errorMsg);
         }
@@ -188,6 +230,23 @@ public class CertificateBasedAuthVerifier implements CertificateAuthVerifier {
                     userIdentity, requiredSan, certSanString);
         }
         return VerificationResult.success();
+    }
+
+    private Set<String> parseSanEntries(String sanString) {
+        Set<String> entries = new HashSet<>();
+        if (sanString == null || sanString.isEmpty()) {
+            return entries;
+        }
+
+        String[] splitEntries = sanString.split(",");
+        for (String splitEntry : splitEntries) {
+            String entry = splitEntry.trim();
+            if (!entry.isEmpty()) {
+                entries.add(entry);
+            }
+        }
+
+        return entries;
     }
 
     @Override

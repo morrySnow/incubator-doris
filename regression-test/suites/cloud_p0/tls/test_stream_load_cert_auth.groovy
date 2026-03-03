@@ -30,7 +30,7 @@ suite('test_stream_load_cert_auth', 'docker, p0') {
     //   SL-04: SAN matching + wrong password + ignore_password=false -> failure (key test!)
     //   SL-05: SAN mismatch -> failure
     //   SL-05a: REQUIRE SAN full, cert subset -> failure
-    //   SL-05b: REQUIRE SAN subset, cert full -> failure
+    //   SL-05b: REQUIRE SAN subset, cert full -> success
     //   SL-05c: REQUIRE SAN full, cert case mismatch -> failure
     //   SL-06: No certificate + REQUIRE SAN -> failure
     //   SL-07: Certificate without SAN extension -> failure
@@ -549,7 +549,7 @@ CN = test-client-nosan
                 def certOpts = (certPath && keyPath) ? "--cert ${certPath} --key ${keyPath}" : ""
                 def twoPhaseHeader = twoPhaseCommit ? '-H "two_phase_commit: true"' : ""
 
-                def cmd = """curl -s -k --cacert ${caCert} \\
+                def cmd = """curl -s -k --noproxy '*' --cacert ${caCert} \\
                     ${certOpts} \\
                     -u '${user}:${password}' \\
                     -H "Expect: 100-continue" \\
@@ -602,7 +602,7 @@ CN = test-client-nosan
 
                 def certOpts = (certPath && keyPath) ? "--cert ${certPath} --key ${keyPath}" : ""
 
-                def cmd = """curl -s -k --cacert ${caCert} \\
+                def cmd = """curl -s -k --noproxy '*' --cacert ${caCert} \\
                     ${certOpts} \\
                     -u '${user}:${password}' \\
                     -X PUT \\
@@ -865,7 +865,7 @@ CN = test-client-nosan
                     logger.info("SL-05a PASSED")
 
                     // ==================================================================================
-                    // SL-05b: REQUIRE SAN subset, cert full -> failure
+                    // SL-05b: REQUIRE SAN subset, cert full -> success
                     // ==================================================================================
                     logger.info("=== SL-05b: REQUIRE SAN subset, cert full ===")
                     sql "CREATE USER '${testUserBase}_11'@'%' IDENTIFIED BY '${testPassword}' REQUIRE SAN '${sanSubset}'"
@@ -880,7 +880,8 @@ CN = test-client-nosan
                         certPath: sanClientCert,
                         keyPath: sanClientKey
                     )
-                    assertFalse(result5b.success, "SL-05b should fail: REQUIRE SAN subset, cert full")
+                    assertTrue(result5b.success, "SL-05b should succeed: REQUIRE SAN subset, cert full")
+                    sql "TRUNCATE TABLE ${tableName}"
                     logger.info("SL-05b PASSED")
 
                     // ==================================================================================
@@ -1073,7 +1074,7 @@ CN = test-client-nosan
 
                     def cycleUserIdentity = "'${cycleUser}'@'%'"
                     def createSans = [null, sanFull, sanMismatch, sanSubset, sanFull]
-                    def wrongSans = [sanMismatch, sanSubset, sanMismatch, sanSubset, sanMismatch]
+                    def requireSansToTest = [sanMismatch, sanSubset, sanMismatch, sanSubset, sanMismatch]
                     def findAuthRowByIdentity = { String userIdentity ->
                         def authRows = sql_return_maparray "show proc '/auth/'"
                         return authRows.find { it.UserIdentity == userIdentity }
@@ -1108,11 +1109,11 @@ CN = test-client-nosan
                         assertTrue(okResult.success, "SL-11 round ${idx} should succeed: ${okResult.output}")
                         sql "TRUNCATE TABLE ${tableName}"
 
-                        def wrongSan = wrongSans[idx - 1]
-                        sql "ALTER USER '${cycleUser}'@'%' REQUIRE SAN '${wrongSan}'"
+                        def requireSanToTest = requireSansToTest[idx - 1]
+                        sql "ALTER USER '${cycleUser}'@'%' REQUIRE SAN '${requireSanToTest}'"
                         def authRowWrong = findAuthRowByIdentity(cycleUserIdentity)
                         assertTrue(authRowWrong != null, "Should find user ${cycleUser} after wrong REQUIRE SAN")
-                        assertTrue(authRowWrong.RequireSan == wrongSan, "RequireSan should be ${wrongSan}")
+                        assertTrue(authRowWrong.RequireSan == requireSanToTest, "RequireSan should be ${requireSanToTest}")
 
                         def wrongResult = executeStreamLoadCurl(
                             user: cycleUser,
@@ -1122,7 +1123,15 @@ CN = test-client-nosan
                             certPath: sanClientCert,
                             keyPath: sanClientKey
                         )
-                        assertFalse(wrongResult.success, "SL-11 round ${idx} should fail: ${wrongResult.output}")
+                        def shouldSucceedWithRequireSan = (requireSanToTest == sanSubset)
+                        if (shouldSucceedWithRequireSan) {
+                            assertTrue(wrongResult.success,
+                                    "SL-11 round ${idx} should succeed when REQUIRE SAN is certificate subset: ${wrongResult.output}")
+                            sql "TRUNCATE TABLE ${tableName}"
+                        } else {
+                            assertFalse(wrongResult.success,
+                                    "SL-11 round ${idx} should fail: ${wrongResult.output}")
+                        }
 
                         sql "ALTER USER '${cycleUser}'@'%' REQUIRE NONE"
                         def authRowNone = findAuthRowByIdentity(cycleUserIdentity)

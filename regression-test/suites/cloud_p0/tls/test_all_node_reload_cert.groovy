@@ -734,7 +734,7 @@ emailAddress            = optional
             // Test connection to a node port
             def testConnection = { String host, int port ->
                 try {
-                    def cmd = "timeout 5 curl -k --cert ${expiredCertDir}/certificate.crt --key ${expiredCertDir}/certificate.key --cacert ${expiredCertDir}/ca.crt https://${host}:${port}/ 2>&1"
+                    def cmd = "timeout 5 curl --noproxy '*' -k --cert ${expiredCertDir}/certificate.crt --key ${expiredCertDir}/certificate.key --cacert ${expiredCertDir}/ca.crt https://${host}:${port}/ 2>&1"
                     def proc = ["bash", "-lc", cmd].execute()
                     def stdout = new StringBuilder()
                     def stderr = new StringBuilder()

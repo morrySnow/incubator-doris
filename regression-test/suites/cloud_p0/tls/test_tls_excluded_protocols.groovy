@@ -221,7 +221,7 @@ ${sanEntries}
 
             if (protocol == "https") {
                 def curlOpts = "--cacert ${ca} --cert ${cert} --key ${key}"
-                def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} https://${host}:${port}/ 2>&1 || true"
+                def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} https://${host}:${port}/ 2>&1 || true"
                 def output = runCommand(cmd, "curl ${componentName}")
 
                 def sslErrors = ["ssl certificate problem", "bad certificate", "alert", "unable", "self signed certificate",
@@ -234,7 +234,7 @@ ${sanEntries}
             }
 
             if (curlSupportsHttp09) {
-                def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' --http0.9 http://${host}:${port}/ 2>&1 || true"
+                def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --http0.9 http://${host}:${port}/ 2>&1 || true"
                 def output = runCommand(cmd, "curl ${componentName}")
 
                 def sslErrors = ["ssl certificate problem", "bad certificate", "alert", "unable", "self signed certificate",

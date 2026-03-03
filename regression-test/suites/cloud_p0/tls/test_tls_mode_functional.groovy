@@ -359,7 +359,7 @@ ${sanEntries}
                 // If checkProtocolMismatch is enabled, compare responses from both protocols
                 if (checkProtocolMismatch) {
                     def oppositeProtocol = useTls ? "http" : "https"
-                    def oppositeCmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${oppositeProtocol}://${host}:${port}/ 2>&1 || true"
+                    def oppositeCmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${oppositeProtocol}://${host}:${port}/ 2>&1 || true"
                     def oppositeOutput = runCommand(oppositeCmd, "curl ${oppositeProtocol} ${host}:${port}")
 
                     // If both protocols give different response, it's a failure (protocol mismatch detected)
@@ -379,7 +379,7 @@ ${sanEntries}
 
             frontends.each { fe ->
                 [8030, 9020, 9010].each { port ->
-                    def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${fe.host}:${port}/ 2>&1 || true"
+                    def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${fe.host}:${port}/ 2>&1 || true"
                     def output = runCommand(cmd, "curl FE[${fe.index}]:${port}")
                     def success = checkSuccess(output, fe.host, port)
                     logger.info("FE[${fe.index}] ${fe.host}:${port} (${fePortProtocols[port]}) => ${success ? 'OK' : 'FAIL'} (${output})")
@@ -388,7 +388,7 @@ ${sanEntries}
             }
             backends.each { be ->
                 [9060, 8040, 9050, 8060].each { port ->
-                    def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${be.host}:${port}/ 2>&1 || true"
+                    def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${be.host}:${port}/ 2>&1 || true"
                     def output = runCommand(cmd, "curl BE[${be.index}]:${port}")
                     def success = checkSuccess(output, be.host, port)
                     logger.info("BE[${be.index}] ${be.host}:${port} (${bePortProtocols[port]}) => ${success ? 'OK' : 'FAIL'} (${output})")
@@ -396,14 +396,14 @@ ${sanEntries}
                 }
             }
             metaservices.each { ms ->
-                def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${ms.host}:5000/ 2>&1 || true"
+                def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${ms.host}:5000/ 2>&1 || true"
                 def output = runCommand(cmd, "curl MS[${ms.index}]:5000")
                 def success = checkSuccess(output, ms.host, 5000)
                 logger.info("MS[${ms.index}] ${ms.host}:5000 (HTTP) => ${success ? 'OK' : 'FAIL'} (${output})")
                 assertEquals(expectSuccess, success)
             }
             recyclers.each { rc ->
-                def cmd = "timeout 5 curl -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${rc.host}:5000/ 2>&1 || true"
+                def cmd = "timeout 5 curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' ${curlOpts} ${protocol}://${rc.host}:5000/ 2>&1 || true"
                 def output = runCommand(cmd, "curl Recycler[${rc.index}]:5000")
                 def success = checkSuccess(output, rc.host, 5000)
                 logger.info("Recycler[${rc.index}] ${rc.host}:5000 (HTTP) => ${success ? 'OK' : 'FAIL'} (${output})")

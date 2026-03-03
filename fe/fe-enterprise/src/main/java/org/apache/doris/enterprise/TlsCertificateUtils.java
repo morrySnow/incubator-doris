@@ -26,7 +26,10 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Utility class for extracting information from X509 certificates,
@@ -60,15 +63,34 @@ public class TlsCertificateUtils {
      * @return the formatted SAN string, or empty string if no SANs found or on error
      */
     public static String extractSubjectAlternativeNames(X509Certificate cert) {
+        return String.join(", ", extractSubjectAlternativeNameParts(cert));
+    }
+
+    /**
+     * Extracts SAN entries from an X509 certificate as canonical entry strings
+     * with type prefixes (for example "DNS:example.com", "email:alice@example.com").
+     *
+     * @param cert the X509 certificate
+     * @return the SAN entries set, or empty set if no SANs found or on error
+     */
+    public static Set<String> extractSubjectAlternativeNameEntries(X509Certificate cert) {
+        List<String> sanParts = extractSubjectAlternativeNameParts(cert);
+        if (sanParts.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new HashSet<>(sanParts);
+    }
+
+    private static List<String> extractSubjectAlternativeNameParts(X509Certificate cert) {
         if (cert == null) {
-            return "";
+            return Collections.emptyList();
         }
 
         List<String> sanParts = new ArrayList<>();
         try {
             Collection<List<?>> sanCollection = cert.getSubjectAlternativeNames();
             if (sanCollection == null) {
-                return "";
+                return Collections.emptyList();
             }
 
             // Iterate in certificate storage order (preserved by Java API)
@@ -90,10 +112,10 @@ public class TlsCertificateUtils {
             }
         } catch (CertificateParsingException e) {
             LOG.warn("Failed to parse Subject Alternative Names from certificate: {}", e.getMessage());
-            return "";
+            return Collections.emptyList();
         }
 
-        return String.join(", ", sanParts);
+        return sanParts;
     }
 
     /**

@@ -27,6 +27,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import javax.security.auth.x500.X500Principal;
 
 public class TlsCertificateUtilsTest {
@@ -48,6 +49,51 @@ public class TlsCertificateUtilsTest {
 
         String san = TlsCertificateUtils.extractSubjectAlternativeNames(mockCert);
         Assert.assertEquals("", san);
+    }
+
+    @Test
+    public void testExtractSubjectAlternativeNameEntriesNull() {
+        Set<String> sans = TlsCertificateUtils.extractSubjectAlternativeNameEntries(null);
+        Assert.assertTrue(sans.isEmpty());
+    }
+
+    @Test
+    public void testExtractSubjectAlternativeNameEntries(@Mocked X509Certificate mockCert) throws Exception {
+        Collection<List<?>> sanCollection = new ArrayList<>();
+
+        List<Object> emailSan = new ArrayList<>();
+        emailSan.add(Integer.valueOf(1));
+        emailSan.add("test@example.com");
+        sanCollection.add(emailSan);
+
+        List<Object> dnsSan = new ArrayList<>();
+        dnsSan.add(Integer.valueOf(2));
+        dnsSan.add("testclient.example.com");
+        sanCollection.add(dnsSan);
+
+        List<Object> uriSan = new ArrayList<>();
+        uriSan.add(Integer.valueOf(6));
+        uriSan.add("spiffe://example.com/testclient");
+        sanCollection.add(uriSan);
+
+        List<Object> ipSan = new ArrayList<>();
+        ipSan.add(Integer.valueOf(7));
+        ipSan.add(new byte[] {(byte) 192, (byte) 168, (byte) 1, (byte) 100});
+        sanCollection.add(ipSan);
+
+        new Expectations() {
+            {
+                mockCert.getSubjectAlternativeNames();
+                result = sanCollection;
+            }
+        };
+
+        Set<String> sans = TlsCertificateUtils.extractSubjectAlternativeNameEntries(mockCert);
+        Assert.assertEquals(4, sans.size());
+        Assert.assertTrue(sans.contains("email:test@example.com"));
+        Assert.assertTrue(sans.contains("DNS:testclient.example.com"));
+        Assert.assertTrue(sans.contains("URI:spiffe://example.com/testclient"));
+        Assert.assertTrue(sans.contains("IP Address:192.168.1.100"));
     }
 
     @Test
