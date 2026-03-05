@@ -184,6 +184,7 @@ class DBManager(object):
                 "s3.region" = "{cloud_store_config['DORIS_CLOUD_REGION']}",
                 "s3.root.path" = "{str(uuid.uuid4())}",
                 "provider" = "{cloud_store_config['DORIS_CLOUD_PROVIDER']}",
+                "s3_validity_check" = "false",
                 "use_path_style" = "false"
             );
             """
@@ -282,11 +283,11 @@ class DBManager(object):
                         dict(zip(fields, row)) for row in cursor.fetchall()
                     ]
             except Exception as e:
-                LOG.warn(
+                LOG.warning(
                     f"Error occurred: fe {self.fe_ip}:{self.fe_port}, sql `{sql}`, err {e}"
                 )
                 if "timed out" in str(e).lower() and attempt < retries - 1:
-                    LOG.warn(
+                    LOG.warning(
                         f"Query timed out, fe {self.fe_ip}:{self.fe_port}. Retrying {attempt + 1}/{retries}..."
                     )
                     self._reset_conn()
