@@ -213,7 +213,7 @@ Status ScanLocalState<Derived>::_normalize_conjuncts(RuntimeState* state) {
                 [&](auto&& range) {
                     if (range.is_empty_value_range()) {
                         _eos = true;
-                        _scan_dependency->set_ready();
+                        _scan_dependency->set_always_ready();
                     }
                 },
                 it.second.second);
@@ -538,7 +538,7 @@ Status ScanLocalState<Derived>::_eval_const_conjuncts(vectorized::VExpr* vexpr,
             if (constant_val == nullptr || !*reinterpret_cast<bool*>(constant_val)) {
                 *pdt = PushDownType::ACCEPTABLE;
                 _eos = true;
-                _scan_dependency->set_ready();
+                _scan_dependency->set_always_ready();
             }
         } else if (const vectorized::ColumnVector<vectorized::UInt8>* bool_column =
                            check_and_get_column<vectorized::ColumnVector<vectorized::UInt8>>(
@@ -556,7 +556,7 @@ Status ScanLocalState<Derived>::_eval_const_conjuncts(vectorized::VExpr* vexpr,
                 if (constant_val == nullptr || !*reinterpret_cast<bool*>(constant_val)) {
                     *pdt = PushDownType::ACCEPTABLE;
                     _eos = true;
-                    _scan_dependency->set_ready();
+                    _scan_dependency->set_always_ready();
                 }
             } else {
                 LOG(WARNING) << "Constant predicate in scan node should return a bool column with "
@@ -671,7 +671,7 @@ Status ScanLocalState<Derived>::_normalize_in_and_eq_predicate(vectorized::VExpr
             range.intersection(temp_range);
         } else {
             _eos = true;
-            _scan_dependency->set_ready();
+            _scan_dependency->set_always_ready();
         }
         *pdt = temp_pdt;
     }
@@ -766,7 +766,7 @@ Status ScanLocalState<Derived>::_normalize_not_in_and_not_eq_predicate(
         auto fn_name = std::string("");
         if (state->hybrid_set->contain_null()) {
             _eos = true;
-            _scan_dependency->set_ready();
+            _scan_dependency->set_always_ready();
         }
         while (iter->has_next()) {
             // column not in (nullptr) is always true
@@ -825,7 +825,7 @@ Status ScanLocalState<Derived>::_normalize_not_in_and_not_eq_predicate(
             }
         } else {
             _eos = true;
-            _scan_dependency->set_ready();
+            _scan_dependency->set_always_ready();
         }
     } else {
         return Status::OK();
@@ -971,7 +971,7 @@ Status ScanLocalState<Derived>::_normalize_noneq_binary_predicate(
                 *pdt = temp_pdt;
             } else {
                 _eos = true;
-                _scan_dependency->set_ready();
+                _scan_dependency->set_always_ready();
             }
         }
     }

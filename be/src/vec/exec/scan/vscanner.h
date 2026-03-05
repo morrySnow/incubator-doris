@@ -131,6 +131,7 @@ public:
     void update_wait_worker_timer() { _scanner_wait_worker_timer += _watch.elapsed_time(); }
 
     int64_t get_scanner_wait_worker_timer() const { return _scanner_wait_worker_timer; }
+    int64_t get_scan_cpu_timer() const { return _scan_cpu_timer; }
 
     void update_scan_cpu_timer();
 
