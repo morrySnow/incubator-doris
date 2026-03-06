@@ -120,4 +120,27 @@ private:
 #define LOG_ERROR TaggableLogger(__FILE__, __LINE__, google::GLOG_ERROR)
 #define LOG_FATAL TaggableLogger(__FILE__, __LINE__, google::GLOG_FATAL)
 
+// glog truncates messages longer than ~30000 characters. This helper splits a
+// long message into multiple log entries so that nothing is silently lost.
+// Each chunk is prefixed with "[part/total]" when splitting is needed.
+inline void log_split(const char* file, int line, google::LogSeverity severity,
+                      const std::string& msg, size_t max_chunk_size = 29000) {
+    if (msg.size() <= max_chunk_size) {
+        google::LogMessage(file, line, severity).stream() << msg;
+        return;
+    }
+    size_t total = msg.size();
+    size_t num_parts = (total + max_chunk_size - 1) / max_chunk_size;
+    for (size_t i = 0, part = 1; i < total; i += max_chunk_size, ++part) {
+        google::LogMessage(file, line, severity).stream()
+                << "[" << part << "/" << num_parts << "] "
+                << std::string_view(msg.data() + i, std::min(max_chunk_size, total - i));
+    }
+}
+
+#define LOG_INFO_SPLIT(...) \
+    doris::log_split(__FILE__, __LINE__, google::GLOG_INFO, fmt::format(__VA_ARGS__))
+#define LOG_WARNING_SPLIT(...) \
+    doris::log_split(__FILE__, __LINE__, google::GLOG_WARNING, fmt::format(__VA_ARGS__))
+
 } // namespace doris

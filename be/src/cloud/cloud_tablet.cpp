@@ -283,14 +283,20 @@ Result<std::vector<Version>> CloudTablet::capture_versions_with_freshness_tolera
             std::tm tm2 = *std::localtime(&t2);
             std::ostringstream oss2;
             oss2 << std::put_time(&tm2, "%Y-%m-%d %H:%M:%S");
-            LOG_INFO(
+            LOG_INFO_SPLIT(
                     "[verbose] CloudTablet::capture_rs_readers_with_freshness_tolerance, "
                     "find a rowset which should be visible but not warmed up, tablet_id={}, "
-                    "path_max_version={}, rowset_id={}, version={}, visible_time={}, "
+                    "path_max_version={}, cumulative_layer_point={}, capture_path=[{}], "
+                    "rowset_id={}, version={}, visible_time={}, "
                     "freshness_limit={}, version_graph={}, rowset_warmup_digest={}",
-                    tablet_id(), path_max_version, rs_meta->rowset_id().to_string(),
-                    rs_meta->version().to_string(), oss1.str(), oss2.str(),
-                    _timestamped_version_tracker.debug_string(), rowset_warmup_digest());
+                    tablet_id(), path_max_version, cumulative_layer_point(),
+                    fmt::join(version_path | std::views::transform([](const auto& v) {
+                                  return v.to_string();
+                              }),
+                              ", "),
+                    rs_meta->rowset_id().to_string(), rs_meta->version().to_string(),
+                    oss1.str(), oss2.str(), _timestamped_version_tracker.debug_string(),
+                    rowset_warmup_digest());
         }
         return ret;
     };
