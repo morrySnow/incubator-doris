@@ -336,6 +336,11 @@ void ScannerScheduler::_scanner_scan(std::shared_ptr<ScannerContext> ctx,
     }
 
     if (eos) {
+        if (!need_update_profile && scanner->is_init()) {
+            scanner->update_scan_cpu_timer();
+            scanner->update_realtime_counters();
+            need_update_profile = false;
+        }
         // If eos, scanner will call _collect_profile_before_close to update profile,
         // so we need update_scanner_profile here
         update_scanner_profile();
