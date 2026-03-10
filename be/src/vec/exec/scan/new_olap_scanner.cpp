@@ -245,8 +245,8 @@ Status NewOlapScanner::init() {
     return Status::OK();
 }
 
-Status NewOlapScanner::open(RuntimeState* state) {
-    RETURN_IF_ERROR(VScanner::open(state));
+Status NewOlapScanner::_open_impl(RuntimeState* state) {
+    RETURN_IF_ERROR(VScanner::_open_impl(state));
     SCOPED_TIMER(_local_state->cast<pipeline::OlapScanLocalState>()._reader_init_timer);
 
     auto res = _tablet_reader->init(_tablet_reader_params);

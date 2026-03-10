@@ -84,7 +84,7 @@ Status NewEsScanner::prepare(RuntimeState* state, const VExprContextSPtrs& conju
     return Status::OK();
 }
 
-Status NewEsScanner::open(RuntimeState* state) {
+Status NewEsScanner::_open_impl(RuntimeState* state) {
     VLOG_CRITICAL << NEW_SCANNER_TYPE << "::open";
 
     if (nullptr == state) {
@@ -96,7 +96,7 @@ Status NewEsScanner::open(RuntimeState* state) {
     }
 
     RETURN_IF_CANCELLED(state);
-    RETURN_IF_ERROR(VScanner::open(state));
+    RETURN_IF_ERROR(VScanner::_open_impl(state));
 
     RETURN_IF_ERROR(_es_reader->open());
 

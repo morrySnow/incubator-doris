@@ -62,9 +62,9 @@ VMetaScanner::VMetaScanner(RuntimeState* state, pipeline::ScanLocalStateBase* lo
           _user_identity(user_identity),
           _scan_range(scan_range.scan_range) {}
 
-Status VMetaScanner::open(RuntimeState* state) {
+Status VMetaScanner::_open_impl(RuntimeState* state) {
     VLOG_CRITICAL << "VMetaScanner::open";
-    RETURN_IF_ERROR(VScanner::open(state));
+    RETURN_IF_ERROR(VScanner::_open_impl(state));
     if (_scan_range.meta_scan_range.metadata_type == TMetadataType::ICEBERG) {
         // TODO: refactor this code
         auto reader = IcebergSysTableJniReader::create_unique(_tuple_desc->slots(), state, _profile,

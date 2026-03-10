@@ -73,7 +73,10 @@ public:
     virtual Status init() { return Status::OK(); }
     // Not virtual, all child will call this method explictly
     virtual Status prepare(RuntimeState* state, const VExprContextSPtrs& conjuncts);
-    virtual Status open(RuntimeState* state) { return Status::OK(); }
+    Status open(RuntimeState* state) {
+        SCOPED_RAW_TIMER(&_per_scanner_timer);
+        return _open_impl(state);
+    }
 
     Status get_block(RuntimeState* state, Block* block, bool* eos);
     Status get_block_after_projects(RuntimeState* state, vectorized::Block* block, bool* eos);
@@ -90,6 +93,8 @@ public:
     virtual std::string get_current_scan_range_name() { return "not implemented"; }
 
 protected:
+    virtual Status _open_impl(RuntimeState* state) { return Status::OK(); }
+
     // Subclass should implement this to return data.
     virtual Status _get_block_impl(RuntimeState* state, Block* block, bool* eof) = 0;
 
