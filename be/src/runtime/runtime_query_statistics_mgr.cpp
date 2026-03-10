@@ -280,8 +280,8 @@ void RuntimeQueryStatisticsMgr::register_fragment_profile(
         _load_channel_profile_map[std::make_pair(query_id, fragment_id)] = load_channel_profile_x;
     }
 
-    LOG_INFO("register x profile done {}, fragment {}, profiles {}", print_id(query_id),
-             fragment_id, p_profiles.size());
+    VLOG_CRITICAL << fmt::format("register x profile done {}, fragment {}, profiles {}",
+                                 print_id(query_id), fragment_id, p_profiles.size());
 }
 
 void RuntimeQueryStatisticsMgr::_report_query_profiles_function() {
@@ -332,7 +332,7 @@ void RuntimeQueryStatisticsMgr::_report_query_profiles_function() {
             LOG_WARNING("Query {} send profile to {} failed", print_id(query_id),
                         PrintThriftNetworkAddress(coor_addr));
         } else {
-            LOG_INFO("Send {} profile succeed", print_id(query_id));
+            VLOG_CRITICAL << fmt::format("Send {} profile succeed", print_id(query_id));
         }
     }
 }
