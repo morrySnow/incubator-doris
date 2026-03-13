@@ -1333,9 +1333,15 @@ public class Auth implements Writable {
         List<String> userAuthInfo = Lists.newArrayList();
         // ================= UserIdentity =======================
         userAuthInfo.add(userIdent.toString());
-        String requireSan = Strings.isNullOrEmpty(userIdent.getSan())
+        // Look up the stored User first so we can derive TLS fields (e.g. san) from the
+        // persisted UserIdentity.  The passed-in userIdent may have been constructed by the
+        // SQL parser (SHOW GRANTS FOR <user>) and therefore lacks fields that are not part
+        // of the user/host identity key, such as san.
+        User storedUser = userManager.getUserByUserIdentity(userIdent);
+        UserIdentity storedIdent = (storedUser != null) ? storedUser.getUserIdentity() : userIdent;
+        String requireSan = Strings.isNullOrEmpty(storedIdent.getSan())
                 ? FeConstants.null_string
-                : userIdent.getSan();
+                : storedIdent.getSan();
         if (isLdapAuthEnabled() && ldapManager.doesUserExist(userIdent.getQualifiedUser())) {
             // ============== Comment ==============
             userAuthInfo.add(FeConstants.null_string);
@@ -1348,17 +1354,16 @@ public class Auth implements Writable {
             userAuthInfo.add(ldapUserInfo.getRoles().stream().map(role -> role.getRoleName())
                     .collect(Collectors.joining(",")));
         } else {
-            User user = userManager.getUserByUserIdentity(userIdent);
-            if (user == null) {
+            if (storedUser == null) {
                 userAuthInfo.add(FeConstants.null_string);
                 userAuthInfo.add(FeConstants.null_string);
                 userAuthInfo.add(FeConstants.null_string);
                 userAuthInfo.add(FeConstants.null_string);
             } else {
                 // ============== Comment ==============
-                userAuthInfo.add(user.getComment());
+                userAuthInfo.add(storedUser.getComment());
                 // ============== Password ==============
-                userAuthInfo.add(user.hasPassword() ? "Yes" : "No");
+                userAuthInfo.add(storedUser.hasPassword() ? "Yes" : "No");
                 // ============== RequireSan ==============
                 userAuthInfo.add(requireSan);
                 // ============== Roles ==============

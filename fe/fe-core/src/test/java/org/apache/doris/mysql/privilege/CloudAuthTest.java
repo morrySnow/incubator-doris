@@ -28,6 +28,7 @@ import org.apache.doris.analysis.ResourceTypeEnum;
 import org.apache.doris.analysis.RevokeStmt;
 import org.apache.doris.analysis.ShowGrantsStmt;
 import org.apache.doris.analysis.TablePattern;
+import org.apache.doris.analysis.TlsOptions;
 import org.apache.doris.analysis.UserDesc;
 import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.AccessPrivilege;
@@ -38,6 +39,7 @@ import org.apache.doris.cloud.catalog.ComputeGroup;
 import org.apache.doris.cloud.system.CloudSystemInfoService;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.ExceptionChecker;
+import org.apache.doris.common.Pair;
 import org.apache.doris.common.UserException;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.persist.EditLog;
@@ -618,6 +620,37 @@ public class CloudAuthTest {
         Assert.assertEquals("\\N", showResultSet.getResultRows().get(0).get(14));
 
         // drop user
+        dropUser(userIdentity);
+    }
+
+    /**
+     * Regression test for: SHOW GRANTS FOR '<user>'@'%' always shows RequireSan=NULL even when
+     * REQUIRE SAN is set. The bug was that getUserAuthInfo() computed requireSan from the
+     * parser-created UserIdentity (which lacks the san field) instead of the stored one.
+     */
+    @Test
+    public void testShowGrantsForUserDisplaysRequireSan() throws UserException, AnalysisException {
+        String san = "DNS:ca-doris-cluster-doris-test";
+        UserIdentity userIdentity = new UserIdentity("sanUser", "%");
+        TlsOptions tlsOptions = TlsOptions.of(
+                java.util.Collections.singletonList(Pair.of("SAN", san)));
+        UserDesc userDesc = new UserDesc(userIdentity, "passwd", true);
+        CreateUserStmt createUserStmt = new CreateUserStmt(false, userDesc, null, null, null, tlsOptions);
+        createUserStmt.analyze(analyzer);
+        auth.createUser(createUserStmt);
+
+        // Simulate the parser: SHOW GRANTS FOR 'sanUser'@'%' creates a fresh UserIdentity
+        // without the san field populated. In production, ShowGrantsStmt.analyze() calls
+        // userIdent.analyze() before the statement reaches ShowExecutor, so we do the same.
+        UserIdentity parserCreatedIdent = new UserIdentity("sanUser", "%");
+        parserCreatedIdent.analyze();
+        ShowResultSet resultSet = testShowGrants(parserCreatedIdent);
+
+        Assert.assertEquals(1, resultSet.getResultRows().size());
+        List<String> row = resultSet.getResultRows().get(0);
+        // RequireSan is the 4th column (index 3): UserIdentity, Comment, Password, RequireSan, ...
+        Assert.assertEquals("RequireSan should be shown by SHOW GRANTS FOR, not NULL", san, row.get(3));
+
         dropUser(userIdentity);
     }
 }
