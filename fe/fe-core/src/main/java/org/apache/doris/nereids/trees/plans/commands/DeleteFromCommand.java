@@ -169,7 +169,7 @@ public class DeleteFromCommand extends Command implements ForwardWithSync, Expla
         } catch (Exception e) {
             try {
                 new DeleteFromUsingCommand(nameParts, tableAlias, isTempPart, partitions,
-                        logicalQuery, Optional.empty()).run(ctx, executor);
+                        logicalQuery, Optional.empty(), false).run(ctx, executor);
                 return;
             } catch (Exception e2) {
                 throw e;
@@ -178,8 +178,8 @@ public class DeleteFromCommand extends Command implements ForwardWithSync, Expla
 
         if (olapTable.getKeysType() == KeysType.UNIQUE_KEYS && olapTable.getEnableUniqueKeyMergeOnWrite()
                 && !olapTable.getEnableMowLightDelete()) {
-            new DeleteFromUsingCommand(nameParts, tableAlias, isTempPart, partitions,
-                    logicalQuery, Optional.empty()).run(ctx, executor);
+            new DeleteFromUsingCommand(nameParts, tableAlias, isTempPart, partitions, logicalQuery,
+                    Optional.empty(), false).run(ctx, executor);
             return;
         }
 
