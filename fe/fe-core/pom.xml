@@ -34,6 +34,7 @@ under the License.
         <doris.home>${basedir}/../../</doris.home>
         <doris.thirdparty>${basedir}/../../thirdparty</doris.thirdparty>
         <fe_ut_parallel>1</fe_ut_parallel>
+        <argLine></argLine>
     </properties>
     <profiles>
         <profile>
