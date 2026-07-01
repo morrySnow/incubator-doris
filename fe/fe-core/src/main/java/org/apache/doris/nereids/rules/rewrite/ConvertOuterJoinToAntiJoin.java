@@ -19,8 +19,11 @@ package org.apache.doris.nereids.rules.rewrite;
 
 import org.apache.doris.nereids.jobs.JobContext;
 import org.apache.doris.nereids.trees.expressions.Alias;
+import org.apache.doris.nereids.trees.expressions.ComparisonPredicate;
 import org.apache.doris.nereids.trees.expressions.ExprId;
+import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.NamedExpression;
+import org.apache.doris.nereids.trees.expressions.NullSafeEqual;
 import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
 import org.apache.doris.nereids.trees.plans.JoinType;
@@ -35,6 +38,8 @@ import org.apache.doris.nereids.util.TypeUtils;
 import com.google.common.collect.ImmutableList;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -88,12 +93,15 @@ public class ConvertOuterJoinToAntiJoin extends DefaultPlanRewriter<Map<ExprId, 
                 .filter(p -> TypeUtils.isNull(p).isPresent())
                 .flatMap(p -> p.getInputSlots().stream())
                 .collect(Collectors.toSet());
-        Set<Slot> leftAlwaysNullSlots = join.left().getOutputSet().stream()
-                .filter(s -> alwaysNullSlots.contains(s) && !s.nullable())
-                .collect(Collectors.toSet());
-        Set<Slot> rightAlwaysNullSlots = join.right().getOutputSet().stream()
-                .filter(s -> alwaysNullSlots.contains(s) && !s.nullable())
-                .collect(Collectors.toSet());
+        Set<Slot> nullRejectedJoinSlots = getNullRejectedJoinSlots(join);
+        List<Slot> leftOutput = join.left().getOutput();
+        List<Slot> rightOutput = join.right().getOutput();
+        List<Slot> joinOutput = join.getOutput();
+        Set<Slot> leftAlwaysNullSlots = getAlwaysNullSlots(leftOutput,
+                joinOutput.subList(0, leftOutput.size()), alwaysNullSlots, nullRejectedJoinSlots);
+        Set<Slot> rightAlwaysNullSlots = getAlwaysNullSlots(rightOutput,
+                joinOutput.subList(leftOutput.size(), leftOutput.size() + rightOutput.size()),
+                alwaysNullSlots, nullRejectedJoinSlots);
 
         Plan newChild = null;
         if (join.getJoinType().isLeftOuterJoin() && !rightAlwaysNullSlots.isEmpty()) {
@@ -127,5 +135,54 @@ public class ConvertOuterJoinToAntiJoin extends DefaultPlanRewriter<Map<ExprId, 
         } else {
             return filter.withChildren(newChild);
         }
+    }
+
+    private Set<Slot> getNullRejectedJoinSlots(LogicalJoin<Plan, Plan> join) {
+        Set<Slot> leftOutputSet = join.left().getOutputSet();
+        Set<Slot> rightOutputSet = join.right().getOutputSet();
+        Set<Slot> nullRejectedJoinSlots = new HashSet<>();
+        collectNullRejectedJoinSlots(join.getHashJoinConjuncts(), leftOutputSet, rightOutputSet,
+                nullRejectedJoinSlots);
+        collectNullRejectedJoinSlots(join.getOtherJoinConjuncts(), leftOutputSet, rightOutputSet,
+                nullRejectedJoinSlots);
+        return nullRejectedJoinSlots;
+    }
+
+    private void collectNullRejectedJoinSlots(List<Expression> conjuncts, Set<Slot> leftOutputSet,
+            Set<Slot> rightOutputSet, Set<Slot> nullRejectedJoinSlots) {
+        for (Expression conjunct : conjuncts) {
+            if (!(conjunct instanceof ComparisonPredicate) || conjunct instanceof NullSafeEqual) {
+                continue;
+            }
+            ComparisonPredicate predicate = (ComparisonPredicate) conjunct;
+            if (isSlotComparisonBetweenChildren(predicate, leftOutputSet, rightOutputSet)) {
+                nullRejectedJoinSlots.addAll(predicate.getInputSlots());
+            }
+        }
+    }
+
+    private Set<Slot> getAlwaysNullSlots(List<Slot> childOutput, List<Slot> joinOutput, Set<Slot> alwaysNullSlots,
+            Set<Slot> nullRejectedJoinSlots) {
+        Set<Slot> result = new HashSet<>();
+        for (int i = 0; i < childOutput.size(); i++) {
+            Slot childSlot = childOutput.get(i);
+            Slot outputSlot = joinOutput.get(i);
+            if ((alwaysNullSlots.contains(childSlot) || alwaysNullSlots.contains(outputSlot))
+                    && (!childSlot.nullable() || nullRejectedJoinSlots.contains(childSlot))) {
+                result.add(childSlot);
+            }
+        }
+        return result;
+    }
+
+    private boolean isSlotComparisonBetweenChildren(ComparisonPredicate predicate, Set<Slot> leftOutputSet,
+            Set<Slot> rightOutputSet) {
+        Expression left = predicate.left();
+        Expression right = predicate.right();
+        if (!(left instanceof Slot) || !(right instanceof Slot)) {
+            return false;
+        }
+        return (leftOutputSet.contains(left) && rightOutputSet.contains(right))
+                || (leftOutputSet.contains(right) && rightOutputSet.contains(left));
     }
 }
